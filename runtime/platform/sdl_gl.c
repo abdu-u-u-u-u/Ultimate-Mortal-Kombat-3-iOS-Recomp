@@ -34,7 +34,7 @@
 EM_JS(void, web_pointer_install, (void), {
     var c = Module['canvas'];
     /* touch: a finger has pressed the canvas, or the device's main pointer
-     * is one (a phone before its first tap). See plat_touch_screen. */
+     * is one (a phone before its first tap). See web_touch_controls. */
     var coarse = false;
     try { coarse = matchMedia('(pointer: coarse)').matches; } catch (x) {}
     var st = Module['umk3Pointer'] = { x: -1, y: -1, down: 0, latch: 0, touch: coarse ? 1 : 0 };
@@ -64,18 +64,23 @@ EM_JS(int, web_pointer_read, (float *fx, float *fy), {
     return d ? 1 : 0;
 });
 
-EM_JS(int, web_touch_seen, (void), {
+/* The page's "On-screen controls" setting (web/game.html): "show", "hide",
+ * or "auto" -- shown once a finger is in play. */
+EM_JS(int, web_touch_controls, (void), {
+    var pick = Module['umk3Hud'];
+    if (pick === 'show') return 1;
+    if (pick === 'hide') return 0;
     var st = Module['umk3Pointer'];
     return st && st.touch ? 1 : 0;
 });
 #endif
 
-bool plat_touch_screen(void)
+bool plat_touch_controls(void)
 {
 #ifdef __EMSCRIPTEN__
-    return web_touch_seen() != 0;
+    return web_touch_controls() != 0;
 #else
-    return false;                       /* the mouse is the finger here */
+    return true;                        /* the game's own default */
 #endif
 }
 

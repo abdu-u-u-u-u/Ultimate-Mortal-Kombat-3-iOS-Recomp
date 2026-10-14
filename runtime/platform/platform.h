@@ -54,10 +54,12 @@ void plat_size(int *width, int *height);
  * other. */
 int plat_mouse(int *x, int *y);
 
-/* Whether the player plays by touching the screen -- a phone or a tablet, or
- * any screen a finger has pressed -- so the game's on-screen controls are
- * their controls. A mouse, a keyboard or a pad answers no. */
-bool plat_touch_screen(void);
+/* Whether a fight draws the game's on-screen stick and buttons: the player's
+ * choice where the platform offers one, otherwise whether they play by
+ * touching the screen -- a phone or a tablet, or any screen a finger has
+ * pressed -- where those are their controls. With a mouse, a keyboard or a
+ * pad, no. Either way the buttons still work where they would be drawn. */
+bool plat_touch_controls(void);
 
 /* Seconds since plat_open, monotonic. */
 double plat_time(void);

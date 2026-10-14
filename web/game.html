@@ -59,6 +59,10 @@
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip { background: var(--panel); border: 1px solid #332e28; border-radius: 99px; padding: 2px 10px; color: var(--dim); }
     .chip.on { color: var(--ok); border-color: #3e5a3c; }
+    select {
+      background: #2a2621; color: var(--text); border: 1px solid #4a4239;
+      border-radius: 6px; padding: 6px 8px; font: inherit; cursor: pointer;
+    }
     details { margin-top: 12px; }
     summary { cursor: pointer; color: var(--dim); }
     table { border-collapse: collapse; margin: 6px 0; }
@@ -100,6 +104,13 @@
         <span id="chip-pad" class="chip">No controller</span>
         <span id="chip-net" class="chip">Offline</span>
       </span>
+      <label>On-screen controls
+        <select id="hud" title="The stick and buttons drawn over a fight. They work where they would be drawn either way.">
+          <option value="auto">Touch screens only</option>
+          <option value="show">Show</option>
+          <option value="hide">Hide</option>
+        </select>
+      </label>
       <button id="fullscreen" type="button">Fullscreen</button>
     </div>
 
@@ -121,8 +132,8 @@
         <tr><td>Keyboard</td><td>W A S D or arrows · U high punch · I low punch · O block ·
           J high kick · K low kick · L run · H special · P pause · M moves list.</td></tr>
         <tr><td>Mouse / touch</td><td>The mouse is a finger in the menus. The game's on-screen
-          stick and buttons show in a fight only on a touch screen, where they are the
-          controls; with a keyboard or a controller they are hidden.</td></tr>
+          stick and buttons show in a fight on a touch screen and are hidden otherwise;
+          <b>On-screen controls</b> above the game shows or hides them for good.</td></tr>
       </table>
     </details>
     <details>
@@ -191,6 +202,18 @@
       catch (e) { say("Invite link (" + where + "): " + url); }
     });
 
+    /* ---- the fight's on-screen stick and buttons: shown, hidden, or left to
+     * the device (runtime/platform/sdl_gl.c reads Module.umk3Hud each frame) ---- */
+    const hudSelect = $("hud");
+    {
+      const pick = stored("umk3.hud", "auto");
+      hudSelect.value = ["auto", "show", "hide"].includes(pick) ? pick : "auto";
+    }
+    hudSelect.addEventListener("change", () => {
+      store("umk3.hud", hudSelect.value);
+      $("canvas").focus({ preventScroll: true });   /* the keys go back to the game */
+    });
+
     /* ---- the program ---- */
     /* Local testing only: ?nopause keeps a copy running in a background tab,
      * for an online match between two tabs of one browser. */
@@ -201,6 +224,7 @@
       arguments: ["/assets/res"].concat(devArgs),
       get umk3PlayerName() { return cleanName(nameInput.value) || "PLAYER"; },
       get umk3Room() { return cleanRoom(roomInput.value) || "public"; },
+      get umk3Hud() { return hudSelect.value; },
       umk3NetLog: line => log("[online] " + line),
       print(line) {
         log(line);
