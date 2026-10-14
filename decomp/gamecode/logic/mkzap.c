@@ -2309,8 +2309,8 @@ void make_dragon_explode(MK3OBJ *obj)
  * calls than a readable C that keeps the two returns separate -- the same
  * gap `t_background_death` (mkreact.c) already names for a `tbb` table.
  */
-void q_yes(MK3OBJ *obj);
-void q_no(MK3OBJ *obj);
+long q_yes(MK3OBJ *obj);
+long q_no(MK3OBJ *obj);
 extern MK3THREAD *TList;                         /* 0x0038ed48 */
 
 void is_jade_protected(MK3OBJ *obj)
@@ -6055,7 +6055,7 @@ repark_ce3:
  *          if (frame > 0) { frame -= 1 ; return 0 }
  *          install t_local_reaction_exit ; return 0
  */
-void q_is_he_reacting(MK3OBJ *obj);
+long q_is_he_reacting(MK3OBJ *obj);
 
 long t_saw_strike_check(MK3THREAD *thread)
 {

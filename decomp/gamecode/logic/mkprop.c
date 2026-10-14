@@ -171,7 +171,7 @@ long is_stick_up(MK3OBJ *obj);
 void init_special(MK3OBJ *obj);
 void set_noflip(MK3OBJ *obj);
 long tl_kano_cannon_ball(MK3THREAD *thread);
-void check_block_bit(MK3OBJ *obj);
+long check_block_bit(MK3OBJ *obj);
 void clear_shadow_bit(MK3OBJ *obj);
 long tl_ind_charge(MK3THREAD *thread);
 long get_rough_hypotenuse(MK3OBJ *obj);

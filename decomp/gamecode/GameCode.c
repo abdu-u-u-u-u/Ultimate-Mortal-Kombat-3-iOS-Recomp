@@ -6961,7 +6961,12 @@ void  preprocessPreloadKode(void);
 #define FrameID_GetBBoxPtr ((void (*)(void))FrameID_GetBBox)
 
 void *LIME_LoadScene(const char *name, long a, long b, long c);
-void *LIME_LoadSceneWithTextures(const char *name, long a);
+/* RenderScene.c defines it with one parameter and never reads a second;
+ * the calls below pass the 0 or 1 the binary leaves in r1, transcribed as
+ * written. One prototype for both: a mismatched call traps under wasm. */
+void *LIME_LoadSceneWithTextures(const char *name);
+#define LIME_LoadSceneWithTextures(name, a) \
+    ((void)(a), (LIME_LoadSceneWithTextures)(name))
 void *LIME_LoadMeshSet(const char *name, long a);
 /* The second argument is a STRING, not a word: the body does
  * `sprintf(buf, "%s_DIFF", it)`. Both call sites here pass 0, which the
@@ -10411,7 +10416,7 @@ void  RenderAxesLines(float x, float y, float z);
 void LIME_GLAPI glLoadIdentity(void);
 void  limeGetCurrentModelMatrix(float *out);
 void  limeScaleMatrixXYZ(float *m, float sx, float sy, float sz);
-void  LIME_TriggerEventsFromSceneOffsetIfFollowing(long slot, long follow,
+long  LIME_TriggerEventsFromSceneOffsetIfFollowing(long slot, long follow,
                                                    void *scene, long frame,
                                                    const float *m,
                                                    const float *m2,

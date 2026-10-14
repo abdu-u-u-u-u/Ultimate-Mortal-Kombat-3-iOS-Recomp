@@ -7688,7 +7688,7 @@ long t_do_backup(MK3THREAD *thread)
  * call-site count matches; the four inline returns this had before were
  * behaviourally identical but landfn's fact count catches the duplication.
  */
-void check_block_bit(MK3OBJ *obj);
+long check_block_bit(MK3OBJ *obj);
 
 void is_he_blocking(MK3OBJ *obj)
 {

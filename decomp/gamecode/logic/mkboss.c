@@ -992,7 +992,7 @@ long sk_randper(MK3OBJ *obj)
  * window: pinned in the corner while he's still recovering.
  */
 void q_is_he_cornered(MK3OBJ *obj);
-void q_is_he_reacting(MK3OBJ *obj);
+long q_is_he_reacting(MK3OBJ *obj);
 
 void q_is_he_car(MK3OBJ *obj)
 {
@@ -1658,7 +1658,7 @@ long t_grab_ani(MK3THREAD *thread)
  */
 long t_boss_wait_land(struct MK3THREAD *thread);
 void motaro_easy_randper(MK3OBJ *obj);
-long is_towards_me(MK3OBJ *obj);   /* not yet decompiled, mkdrone.c */
+void is_towards_me(MK3OBJ *obj);   /* mkdrone.c: answers in field5c */
 
 long t_boss_counter_angle(MK3THREAD *thread)
 {

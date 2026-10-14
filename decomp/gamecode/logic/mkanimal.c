@@ -567,8 +567,8 @@ void ground_ob(MK3OBJ *obj, MK3OBJ *target)
  * ignored the result. */
 void get_x_dist(MK3OBJ *obj);
 void distance_off_ground(MK3OBJ *obj);
-void q_yes(MK3OBJ *obj);
-void q_no(MK3OBJ *obj);
+long q_yes(MK3OBJ *obj);
+long q_no(MK3OBJ *obj);
 
 void q_bat_1(MK3OBJ *obj)
 {

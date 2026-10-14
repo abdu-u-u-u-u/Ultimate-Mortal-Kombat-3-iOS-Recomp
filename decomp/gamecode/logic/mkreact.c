@@ -35,15 +35,17 @@ void match_ani_points_ob_ob(uint32_t a, uint32_t b);
 
 /* The reaction threads gup2 suspends into. Three of these are reached through
  * pointer slots in __DATA rather than directly — see the note on gup2. */
-/* Declared as an array so the NAME is the address, without claiming anything
- * about what is stored there. `extern void *x` would say this is a variable
- * holding a pointer; it is code, defined for real in joy.c -- this file only
- * ever takes its address. */
-extern char t_check_winner_status[];
+/* This file only ever takes these two threads' addresses. They were
+ * declared `extern char x[]` -- the name as the address, claiming nothing
+ * about the code -- which i686 links; wasm-ld does not, because a function
+ * and a data symbol are different kinds there ("symbol type mismatch"). So
+ * they are declared as what they are: thread functions, defined in joy.c
+ * and mkdrone.c. */
+long t_check_winner_status(MK3THREAD *thread);
 long t_check_stay_down(struct MK3THREAD *thread);
 long t_mframew(struct MK3THREAD *thread);
 long t_local_reaction_exit(MK3THREAD *thread);
-extern char t_d_getup[];
+long t_d_getup(MK3THREAD *thread);
 long t_getup_stay_ducked(MK3THREAD *thread);
 long t_joy_getup_abort(MK3THREAD *thread);
 

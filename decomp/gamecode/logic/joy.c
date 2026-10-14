@@ -1796,7 +1796,7 @@ long t_joyd4(struct MK3THREAD *thread);
 long t_jhp4(struct MK3THREAD *thread);
 long t_jmp4(struct MK3THREAD *thread);
 void get_char_ani(MK3OBJ *obj);
-void do_next_a9_frame(MK3OBJ *obj);
+long do_next_a9_frame(MK3OBJ *obj);
 void find_ani_part2(MK3OBJ *obj);
 void find_part2(MK3OBJ *obj);
 long t_stat_do_roundhouse(struct MK3THREAD *thread);   /* GOT 0x000f37f0 */
@@ -1814,7 +1814,7 @@ long t_joy_toss(struct MK3THREAD *thread);
 void q_is_he_a_boss(MK3OBJ *obj);
 long am_i_facing_him(MK3OBJ *obj);
 void get_his_action(MK3OBJ *obj);
-void is_he_joy(MK3OBJ *obj);
+long is_he_joy(MK3OBJ *obj);
 void get_my_dfe(MK3OBJ *obj);
 long is_he_right(MK3OBJ *obj);   /* returns r0 AND stores field5c */
 long am_i_joy(MK3OBJ *obj);      /* likewise */

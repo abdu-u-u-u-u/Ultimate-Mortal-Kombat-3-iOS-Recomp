@@ -54,35 +54,35 @@ long c_tusk_zap_air(struct MK3THREAD *thread);
 long c_zoom_sd(struct MK3THREAD *thread);
 long ckik3(struct MK3THREAD *thread);
 long cpch3(struct MK3THREAD *thread);
-long funcs_11119(struct MK3THREAD *thread);
-long funcs_11165(struct MK3THREAD *thread);
-long funcs_11195(struct MK3THREAD *thread);
-long funcs_11229(struct MK3THREAD *thread);
-long funcs_11243(struct MK3THREAD *thread);
-long funcs_11298(struct MK3THREAD *thread);
-long funcs_11346(struct MK3THREAD *thread);
-long funcs_11380(struct MK3THREAD *thread);
-long funcs_11414(struct MK3THREAD *thread);
-long funcs_11449(struct MK3THREAD *thread);
-long funcs_11528(struct MK3THREAD *thread);
-long funcs_11623(struct MK3THREAD *thread);
-long funcs_12230(struct MK3THREAD *thread);
-long funcs_12891(struct MK3THREAD *thread);
-long funcs_12990(struct MK3THREAD *thread);
-long funcs_13044(struct MK3THREAD *thread);
-long funcs_13084(struct MK3THREAD *thread);
-long funcs_13115(struct MK3THREAD *thread);
-long funcs_13142(struct MK3THREAD *thread);
-long funcs_13191(struct MK3THREAD *thread);
-long funcs_13283(struct MK3THREAD *thread);
-long funcs_13351(struct MK3THREAD *thread);
-long funcs_13378(struct MK3THREAD *thread);
-long funcs_13464(struct MK3THREAD *thread);
-long funcs_13578(struct MK3THREAD *thread);
-long funcs_14131(struct MK3THREAD *thread);
-long funcs_14174(struct MK3THREAD *thread);
-long funcs_14207(struct MK3THREAD *thread);
-long funcs_14271(struct MK3THREAD *thread);
+extern uintptr_t funcs_11119[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_11165[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_11195[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_11229[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_11243[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_11298[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_11346[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_11380[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_11414[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_11449[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_11528[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_11623[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_12230[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_12891[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_12990[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_13044[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_13084[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_13115[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_13142[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_13191[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_13283[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_13351[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_13378[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_13464[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_13578[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_14131[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_14174[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_14207[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_14271[];   /* _funcs.N: a table, not code */
 void q_is_proj_gone(MK3OBJ *obj);
 long t_cornered_attack(struct MK3THREAD *thread);
 long t_counter_grounded_sd(struct MK3THREAD *thread);
@@ -1793,9 +1793,13 @@ long t_d_rapid_hi(MK3THREAD *thread)
  * for instruction by instruction.
  * -------------------------------------------------------------------- */
 
-long funcs_13619(struct MK3THREAD *thread);
-long funcs_14239(struct MK3THREAD *thread);
-long rpt_cornered(struct MK3THREAD *thread);
+extern uintptr_t funcs_13619[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_14239[];   /* _funcs.N: a table, not code */
+/* Data, not code: tools/logic_tables.py defines it from the binary as a
+ * table, and this file only takes its address. Declared as a function it
+ * linked on i686; wasm-ld refuses a function and a data symbol of one
+ * name. */
+extern uintptr_t rpt_cornered[];
 long rpt_elbow_knee(struct MK3THREAD *thread);
 long t_d_bflip_jump(struct MK3THREAD *thread);
 long t_d_fflip_kick_jump(struct MK3THREAD *thread);
@@ -3861,7 +3865,11 @@ long CountThreads(uint32_t pid);
 long randper(MK3OBJ *obj);
 void get_my_hitq(MK3OBJ *obj);
 long t_dizzy_sleep(struct MK3THREAD *thread);
-long rpt_counter_airborns(struct MK3THREAD *thread);
+/* Data, not code: tools/logic_tables.py defines it from the binary as a
+ * table, and this file only takes its address. Declared as a function it
+ * linked on i686; wasm-ld refuses a function and a data symbol of one
+ * name. */
+extern uintptr_t rpt_counter_airborns[];
 
 /* is_throwing_allowed -- armv7 0x00067f74: the round clock halfword G+0x44c,
  * above 1 means yes */
@@ -4373,8 +4381,8 @@ long t_perhaps_flipk(struct MK3THREAD *thread);
 long t_react_jump_table_act(struct MK3THREAD *thread);
 long t_d_bflip_noscan_jsrp(struct MK3THREAD *thread);
 long t_d_attack(struct MK3THREAD *thread);
-long funcs_7674(struct MK3THREAD *thread);
-long funcs_13651(struct MK3THREAD *thread);
+extern uintptr_t funcs_7674[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_13651[];   /* _funcs.N: a table, not code */
 void find_ani_part2(MK3OBJ *obj);
 void stop_me_player(MK3OBJ *obj);
 void find_part2(MK3OBJ *obj);
@@ -4833,7 +4841,7 @@ long rpt_promoves(struct MK3THREAD *thread);
 long t_d_fflip_scan_jsrp(struct MK3THREAD *thread);
 long t_fflip_watchout(struct MK3THREAD *thread);
 void stance_setup(MK3OBJ *obj);
-void do_next_a9_frame(MK3OBJ *obj);
+long do_next_a9_frame(MK3OBJ *obj);
 void get_char_ani(MK3OBJ *obj);
 void face_opponent(MK3OBJ *obj);
 void distance_off_ground(MK3OBJ *obj);
@@ -5123,8 +5131,8 @@ long t_d_turnaround(MK3THREAD *thread)
 long t_d_bflip_jump(struct MK3THREAD *thread);
 long t_d_open_jumpover(struct MK3THREAD *thread);
 long t_do_jumpup_kick(struct MK3THREAD *thread);
-long funcs_13699(struct MK3THREAD *thread);
-long funcs_13782(struct MK3THREAD *thread);
+extern uintptr_t funcs_13699[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_13782[];   /* _funcs.N: a table, not code */
 long c_tusk_blur(struct MK3THREAD *thread);
 long t_nr_sweep_if_u_can(struct MK3THREAD *thread);
 long t_d_block_projectile(struct MK3THREAD *thread);
@@ -5384,8 +5392,8 @@ long t_d_hi_kick(struct MK3THREAD *thread);
 long t_d_duck(struct MK3THREAD *thread);
 long t_d_duck_then_uppercut(struct MK3THREAD *thread);
 long t_d_sweep_kick(struct MK3THREAD *thread);
-long funcs_8223(struct MK3THREAD *thread);
-long funcs_8113(struct MK3THREAD *thread);
+extern uintptr_t funcs_8223[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_8113[];   /* _funcs.N: a table, not code */
 void q_backup_zap(MK3OBJ *obj);
 void q_run_then_flipk(MK3OBJ *obj);
 void q_run_then_duck(MK3OBJ *obj);
@@ -5393,7 +5401,7 @@ void q_run_under_fk(MK3OBJ *obj);
 void is_propell_close(MK3OBJ *obj);
 void frontflip_setup(MK3OBJ *obj);
 void d_stance_setup(MK3OBJ *obj);
-void next_anirate(MK3OBJ *obj);
+long next_anirate(MK3OBJ *obj);
 
 long t_run_then_flipk(MK3THREAD *thread)
 {
@@ -5719,8 +5727,8 @@ long c_robo_tele_sd(MK3THREAD *thread)
 
 long t_kick_will_miss(struct MK3THREAD *thread);
 long t_react_jump_table(struct MK3THREAD *thread);
-long funcs_14030(struct MK3THREAD *thread);
-long funcs_13934(struct MK3THREAD *thread);
+extern uintptr_t funcs_14030[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_13934[];   /* _funcs.N: a table, not code */
 long t_d_stalk_a11_ntl(struct MK3THREAD *thread);
 long t_stsw_zap(struct MK3THREAD *thread);
 long t_stance_wait_no(struct MK3THREAD *thread);
@@ -5943,7 +5951,7 @@ long t_do_duck(struct MK3THREAD *thread);
 long t_d_get_close_2_u(struct MK3THREAD *thread);
 long t_stance_wait_yes(struct MK3THREAD *thread);
 long t_retreat_wait_yes(struct MK3THREAD *thread);
-long funcs_10049(struct MK3THREAD *thread);
+extern uintptr_t funcs_10049[];   /* _funcs.N: a table, not code */
 
 /* t_drone_zone -- armv7 0x0006e8b4: state 0 arms q_drone_zone (field48) with
  * a10 = 0x80 and waits; at 0x47c the distance is measured (for its side
@@ -6560,7 +6568,7 @@ long t_av_sweep(struct MK3THREAD *thread);
 long t_stalk_wait_yes(struct MK3THREAD *thread);
 long t_do_axe_up(struct MK3THREAD *thread);
 long t_do_lia_scream(struct MK3THREAD *thread);
-long funcs_13831(struct MK3THREAD *thread);
+extern uintptr_t funcs_13831[];   /* _funcs.N: a table, not code */
 long t_react_jump_table_act(struct MK3THREAD *thread);
 void init_special(MK3OBJ *obj);
 void randu(MK3OBJ *obj);
@@ -7064,7 +7072,7 @@ park:
 
 long t_stat_do_sweep_kick(struct MK3THREAD *thread);
 long t_do_flip_punch(struct MK3THREAD *thread);
-long funcs_7789(struct MK3THREAD *thread);
+extern uintptr_t funcs_7789[];   /* _funcs.N: a table, not code */
 void q_is_he_bike_close(MK3OBJ *obj);
 void q_is_he_axe_close(MK3OBJ *obj);
 
@@ -7317,9 +7325,9 @@ long t_swait_land_jsrp(struct MK3THREAD *thread);
 long t_d_turnaround_jsrp(struct MK3THREAD *thread);
 long t_d_hang_out(struct MK3THREAD *thread);
 long t_chance_do(struct MK3THREAD *thread);
-long funcs_8198(struct MK3THREAD *thread);
-long funcs_8266(struct MK3THREAD *thread);
-long is_he_short(MK3OBJ *obj);
+extern uintptr_t funcs_8198[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_8266[];   /* _funcs.N: a table, not code */
+void is_he_short(MK3OBJ *obj);
 void q_is_he_a_boss(MK3OBJ *obj);
 void q_dist_lift(MK3OBJ *obj);
 void q_is_tracker_close(MK3OBJ *obj);
@@ -7467,7 +7475,8 @@ long t_d_elbow(MK3THREAD *thread)
     is_he_airborn(obj);
     if (obj->field5c != 0)
         return mk3_install(thread, (MK3THREADFUNC)t_d_rapid_lo);
-    if (is_he_short(obj) != 0)
+    is_he_short(obj);                   /* answers in field5c, returns nothing */
+    if (obj->field5c != 0)
         return mk3_install(thread, (MK3THREADFUNC)t_d_knee);
 
     *mk3_frame(thread, thread->frame + 1) = 0x164;
@@ -7843,9 +7852,9 @@ long t_d_run_a11(struct MK3THREAD *thread);
 long t_nr_uppercut_if_u_can(struct MK3THREAD *thread);
 long t_nr_sweep_if_u_can(struct MK3THREAD *thread);
 long t_mframew(struct MK3THREAD *thread);
-long funcs_7715(struct MK3THREAD *thread);
-long funcs_8089(struct MK3THREAD *thread);
-long funcs_8157(struct MK3THREAD *thread);
+extern uintptr_t funcs_7715[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_8089[];   /* _funcs.N: a table, not code */
+extern uintptr_t funcs_8157[];   /* _funcs.N: a table, not code */
 long t_stance_wait_yes(struct MK3THREAD *thread);
 long t_stance_wait_no(struct MK3THREAD *thread);
 long t_nr_drone_zone(struct MK3THREAD *thread);
@@ -7853,7 +7862,7 @@ void d_walkf_setup(MK3OBJ *obj);
 void d_walkb_setup(MK3OBJ *obj);
 void MKEvent_Add(long type, long subtype, long param, long player);
 extern int rand(void);
-long is_he_short(MK3OBJ *obj);
+void is_he_short(MK3OBJ *obj);
 long am_i_facing_him(MK3OBJ *obj);
 
 /* the pop every wait ends with: a level down, or t_local_reaction_exit at the
@@ -8187,7 +8196,7 @@ long t_run_in_close_now(MK3THREAD *thread)
     obj->field1c = (uint32_t)v;
     if (v > 4) {
         h = (MK3THREADFUNC)t_run_in_close_hard;
-    } else if (is_he_short(obj) != 0) {
+    } else if ((is_he_short(obj), obj->field5c != 0)) {   /* the answer is field5c */
         h = (MK3THREADFUNC)t_d_knee;
     } else {
         *(uint32_t *)((char *)obj + 0x68) = (uint32_t)(uintptr_t)funcs_7715;
@@ -8945,7 +8954,7 @@ long c_fast_orb(MK3THREAD *thread)
 
 long t_duck_turnaround(struct MK3THREAD *thread);
 long t_d_sweep_kick(struct MK3THREAD *thread);
-void do_next_a9_frame(MK3OBJ *obj);
+long do_next_a9_frame(MK3OBJ *obj);
 void is_he_attacking(MK3OBJ *obj);
 
 /* the shared "pop one level and slide the pair above down" */
