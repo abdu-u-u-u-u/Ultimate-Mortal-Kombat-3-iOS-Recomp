@@ -19,6 +19,15 @@ exactly as walked out of the binary, and only the final pointer moves.
 
 The output holds game data: it belongs in the build directory, never in the
 repository.
+
+## The browser build
+
+A build served to other people cannot carry the scripts, so it compiles
+runtime/umk3_tables_rt.c instead of this script's output. That reads the same
+range out of the user's binary at run time -- SEQ_LO to the end of the
+section holding it, refused unless that section is __TEXT,__const -- as the
+same little-endian 16-bit words, an odd last byte padded with zero, and its
+`umk3_seq_addr()` means what this one does.
 """
 
 import os

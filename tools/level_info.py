@@ -25,6 +25,20 @@ printed so the classification can be audited.
 
 The output holds game data: it belongs in the build directory, never in the
 repository. 32-bit hosts only -- Level_Info's words are four bytes.
+
+## The browser build
+
+A build served to other people cannot carry the pool, so it compiles
+runtime/umk3_tables_rt.c instead of this script's output. That reads the
+user's binary at run time and applies the rules above to it: `_Level_Info` and
+`_CurrentScene` by name among the N_SECT symbols, the first value of a name
+winning as `syms.setdefault` makes it here; Level_Info's size as the gap to
+the next such value; the same "symbol inside the string pool" and
+"__DATA,__data" refusals; and a word relocated iff its value lies in the
+pool. Its `umk3_relocate_level_info()` means what this one does. It parses
+LC_SYMTAB itself rather than read a --layout output from here: the rules need
+only four numbers the symbol table gives, and no host symbol a generated file
+would have to link, so the browser build needs nothing from this script.
 """
 
 import os
