@@ -10,11 +10,12 @@
  *                    The project's plan was always to delete this layer rather
  *                    than decompile it, and these are that deletion.
  *
- *   multiplayer      ~30 calls. GKSession peer-to-peer over Bluetooth. A native
- *                    port needs a real transport and it is not this one, so the
- *                    lobby answers "no peers, not connected" -- the state the
- *                    game already handles, because it is what a device with the
- *                    radio off reports.
+ *   multiplayer      ~30 calls. GKSession peer-to-peer over Bluetooth. The
+ *                    browser build plays online through runtime/mp_session.c
+ *                    and defines UMK3_HAVE_MP; the native builds have no
+ *                    transport, so their lobby answers "no peers, not
+ *                    connected" -- the state the game already handles,
+ *                    because it is what a device with the radio off reports.
  *
  *   mk3_*            7 calls into gamecode/logic, the fight engine, which is
  *                    3 of 2,172 written. The front end only reaches these on
@@ -114,6 +115,8 @@ long EASOC_MayhemGetLeaderBoard(long page, long count, long period, void *cb)
 
 /* -------------------------------------------------------- multiplayer ---- */
 
+#ifndef UMK3_HAVE_MP
+
 /* No radio. Every one of these is the answer a device gives with Bluetooth off,
  * which is a path the front end already has code for. */
 long isMPConnected(void)        { return 0; }
@@ -168,6 +171,8 @@ void sendSpriteListPacket(void *objects, long a, long b)
 { (void)objects; (void)a; (void)b; g_mp_packets++; }
 
 long setNextSpritesAndEvents(void) { return 0; }
+
+#endif /* UMK3_HAVE_MP */
 
 
 /* ------------------------------------------- gamecode/logic, the fight ---- */

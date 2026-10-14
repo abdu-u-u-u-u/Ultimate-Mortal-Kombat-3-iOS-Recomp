@@ -159,6 +159,7 @@ void  Load_SettingsData(void);
 void  GameCodeInit(void);
 void  fight_runtime_init(void);
 void  GameCodeMain(void);
+void  heartbeatUpdate(void);           /* the multiplayer link, every frame */
 
 void  lime_menu_advance_clock(double seconds);
 void  lime_touch_began(float x, float y);
@@ -1314,6 +1315,11 @@ int main(int argc, char **argv)
                 }
             }
             if (!f) {
+                /* The game stands still, the link must not: an online
+                 * opponent gets the pause (lime_app_resign_active) and
+                 * then keep-alives, not silence that reads as a dropped
+                 * connection. Native builds answer it with a stub. */
+                heartbeatUpdate();
                 plat_swap();
                 continue;
             }

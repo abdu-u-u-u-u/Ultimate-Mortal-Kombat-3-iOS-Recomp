@@ -5898,7 +5898,11 @@ void Task_GameInit(void)
     *lastTimestamp = 0;
 
     if (GameMode == 1) {
-        CurrentTask = 6 + 8;            /* 14 */
+        /* Task 9, Task_MultiplayerSync: the register holds GameMode, 1, and
+         * the binary adds 8 to it. Written as 6 + 8 it was 14, an empty
+         * TaskFunctionList slot, and the first network fight called address
+         * 0. Reasoned from the table, not yet re-read at armv7. */
+        CurrentTask = 9;
         syncGame(1);
     } else if (Settings[2] != 0) {
         limePlayTune(LevelMusic[*LevelSelectP],
@@ -9065,13 +9069,13 @@ void Task_GameDestroy(void)
  * arrived, in a loop:
  *
  *      while (setNextSpritesAndEvents()) {
- *          GameObjects[0] = &mpSpriteList[i * 160];
+ *          GameObjects = &mpSpriteList[i * 160];
  *          Player1Pos, Player2Pos memcpy'd out of the packet
  *          MKEventQueue  memcpy'd out of the packet, 0x54 bytes
  *          the packet's event block memset to zero
  *          AnimateBG / AddNewGameEvents / RunGameEvents / LIME_UpdateEvents
  *      }
- *      if (!SpritelistReceived) GameObjects[0] = dummyObjects;
+ *      if (!SpritelistReceived) GameObjects = dummyObjects;
  *
  * so a guest that fell behind catches up by running every queued list in one
  * display frame rather than one a frame. And a guest that has never received
@@ -9179,7 +9183,11 @@ void UpdateArcadeCode(int *joy1, int *joy2)
                 long k = currentMPSpriteList;
                 char *pkt = mpEventQueue + k * MP_EVENTQUEUE_STRIDE;
 
-                GameObjects[0] = &mpSpriteList[k * MP_SPRITELIST_STRIDE];
+                /* GameObjects' VALUE is the record base (see its
+                 * declaration): the store is to the variable, as
+                 * mk3_update's through &GameObjects is. As GameObjects[0]
+                 * it stored through the NULL Task_GameInit leaves. */
+                GameObjects = (void **)(void *)&mpSpriteList[k * MP_SPRITELIST_STRIDE];
                 lastSpritelistIndex = k;
 
                 memcpy(Player1Pos, pkt,        12);
@@ -9192,8 +9200,8 @@ void UpdateArcadeCode(int *joy1, int *joy2)
                 RunGameEvents();
                 LIME_UpdateEvents();
             }
-            if (!SpritelistReceived)
-                GameObjects[0] = dummyObjects;   /* nothing has ever arrived */
+            if (!SpritelistReceived)            /* nothing has ever arrived */
+                GameObjects = (void **)(void *)dummyObjects;
             stepped = 0;
         } else if (GameMode != 1 && !isParentBasedOnSpeed()) {
             /* the caller's pair goes straight through */
@@ -9220,7 +9228,7 @@ void UpdateArcadeCode(int *joy1, int *joy2)
                     printf("## MAX EVENT QUEUE NUM = %d\n", (int)highestQueueNum);
                     puts("#########################");
                 }
-                sendSpriteListPacket(GameObjects[0], 0, 0);
+                sendSpriteListPacket(GameObjects, 0, 0);    /* the base */
                 FrameCount = FrameCount + 1.0f;
             }
 
