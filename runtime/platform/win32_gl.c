@@ -208,6 +208,13 @@ bool plat_focused(void)
     return g_focused;
 }
 
+/* The window takes the mouse as a finger (plat_mouse); touch input is not
+ * read on Windows, and umk3.ini's hide_controls decides there. */
+bool plat_touch_screen(void)
+{
+    return false;
+}
+
 double plat_time(void)
 {
     LARGE_INTEGER now;

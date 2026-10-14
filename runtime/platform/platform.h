@@ -54,6 +54,11 @@ void plat_size(int *width, int *height);
  * other. */
 int plat_mouse(int *x, int *y);
 
+/* Whether the player plays by touching the screen -- a phone or a tablet, or
+ * any screen a finger has pressed -- so the game's on-screen controls are
+ * their controls. A mouse, a keyboard or a pad answers no. */
+bool plat_touch_screen(void);
+
 /* Seconds since plat_open, monotonic. */
 double plat_time(void);
 

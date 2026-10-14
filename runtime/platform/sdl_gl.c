@@ -33,7 +33,11 @@
  * released before the next frame is latched, as in plat_poll. */
 EM_JS(void, web_pointer_install, (void), {
     var c = Module['canvas'];
-    var st = Module['umk3Pointer'] = { x: -1, y: -1, down: 0, latch: 0 };
+    /* touch: a finger has pressed the canvas, or the device's main pointer
+     * is one (a phone before its first tap). See plat_touch_screen. */
+    var coarse = false;
+    try { coarse = matchMedia('(pointer: coarse)').matches; } catch (x) {}
+    var st = Module['umk3Pointer'] = { x: -1, y: -1, down: 0, latch: 0, touch: coarse ? 1 : 0 };
     function pos(e) {
         var r = c.getBoundingClientRect();
         st.x = (e.clientX - r.left) / (r.width || 1);
@@ -41,6 +45,7 @@ EM_JS(void, web_pointer_install, (void), {
     }
     c.addEventListener('pointerdown', function(e) {
         if (e.button !== 0) return;
+        if (e.pointerType === 'touch') st.touch = 1;
         pos(e); st.down = 1; st.latch = 1;
         try { c.setPointerCapture(e.pointerId); } catch (x) {}
     }, true);
@@ -58,7 +63,21 @@ EM_JS(int, web_pointer_read, (float *fx, float *fy), {
     st.latch = 0;
     return d ? 1 : 0;
 });
+
+EM_JS(int, web_touch_seen, (void), {
+    var st = Module['umk3Pointer'];
+    return st && st.touch ? 1 : 0;
+});
 #endif
+
+bool plat_touch_screen(void)
+{
+#ifdef __EMSCRIPTEN__
+    return web_touch_seen() != 0;
+#else
+    return false;                       /* the mouse is the finger here */
+#endif
+}
 
 static SDL_Window   *g_wnd;
 static SDL_GLContext g_ctx;

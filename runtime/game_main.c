@@ -1484,6 +1484,12 @@ int main(int argc, char **argv)
 
             clear_frame(ww, wh, vx, vy, vw, vh);
             lime_menu_advance_clock(1.0 / 60.0);
+#ifdef __EMSCRIPTEN__
+            /* The browser has no umk3.ini: the device decides. A fight
+             * played with keys, a pad or a mouse shows no on-screen stick
+             * and buttons; on a touch screen they are the controls. */
+            PortHideControls = !plat_touch_screen();
+#endif
             pad_poll();
             pad_cursor(mx, my);
             keyboard_touches();

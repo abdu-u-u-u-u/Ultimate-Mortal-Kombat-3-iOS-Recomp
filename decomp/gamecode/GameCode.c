@@ -8737,10 +8737,13 @@ void DrawControls(void)
         JoystickStatePosYP2 = (long)((float)limeScreenHeight - small);
     }
 
-    /* A port option (hide_controls=1, the launcher's box): the layout above
-     * is still worked out -- the touch code hit-tests against it -- but the
-     * stick and the buttons are not drawn. Not in the binary. */
-    if (PortHideControls)
+    /* A port option (hide_controls=1, the launcher's box; the browser game
+     * sets it off a touch screen): the layout above is still worked out --
+     * the touch code hit-tests against it -- but in a fight the stick and
+     * the buttons are not drawn. FE_Task_Button_Edit draws through here
+     * too, and a layout editor showing nothing would be no editor. Not in
+     * the binary. */
+    if (PortHideControls && CurrentTask == 6)
         return;
 
     DrawJoystick(JoystickStatePosX, JoystickStatePosY, JoystickState,
