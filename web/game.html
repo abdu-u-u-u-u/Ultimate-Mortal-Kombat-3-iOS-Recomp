@@ -121,6 +121,7 @@
     const status = $("status"), logEl = $("log");
     const logLines = [];
     let started = false;
+    let failed = false;     /* the program stopped on this copy: next pick reloads */
 
     function log(line) {
       logLines.push(String(line));
@@ -177,8 +178,17 @@
           started = true;
           say("Ready. Main menu → Multiplayer to play online.");
           $("canvas").focus();
+        } else if (line.startsWith("tables: filled")) {
+          say("Your copy checks out. Starting…");
         } else if (line.startsWith("tables:")) {
-          say(line);
+          /* runtime/umk3_tables_rt.c refused the executable: wrong version,
+           * still encrypted, or not the game. The program has stopped, and
+           * a saved copy would fail the same way on every visit. */
+          failed = true;
+          say("That copy can't be used: " + line.slice(8) +
+              ". Choose the .ipa of UMK3 1.2.59 for iPhone.", true);
+          window.UMK3IPAStore.clearSavedFiles().catch(() => {});
+          pickers(true);
         }
       },
       printErr(line) { log(line); },
@@ -253,6 +263,17 @@
       say(`Loading ${p.done}/${p.total}: ${p.path}`);
     }
 
+    /* asset_mount.js (inside umk3.js) creates Module.umk3AssetMountReady, and
+     * umk3.js can still be loading when a saved copy is found: wait for it. */
+    function mountReady() {
+      return new Promise(resolve => {
+        (function poll() {
+          if (module.umk3AssetMountReady) resolve(module.umk3AssetMountReady);
+          else setTimeout(poll, 50);
+        })();
+      });
+    }
+
     /* Every load ends here: the executable must be among the mounted files. */
     function makeMounter(mount) {
       let sawExecutable = false;
@@ -279,7 +300,7 @@
       pickers(false);
       try {
         say(fromStorage ? "Opening your saved copy…" : "Reading " + file.name + "…");
-        const mount = makeMounter(await module.umk3AssetMountReady);
+        const mount = makeMounter(await mountReady());
         let cache = false, index = 0;
         await window.UMK3IPA.extractIpaResources(file, progress, async entry => {
           if (cache) {
@@ -316,7 +337,7 @@
       pickers(false);
       try {
         say("Reading the folder…");
-        const mount = makeMounter(await module.umk3AssetMountReady);
+        const mount = makeMounter(await mountReady());
         await window.UMK3IPA.readAppDirectory(files, progress, e => mount.mount(e),
           async entries => {
             await persist();
@@ -332,13 +353,42 @@
       }
     }
 
+    /* The program runs once per page. After a refused copy it has stopped,
+     * so a new pick is saved and the page starts again with it. */
+    async function restartWith(save) {
+      say("Starting again with the new copy…");
+      try {
+        await window.UMK3IPAStore.clearSavedFiles();
+        await save();
+        location.reload();
+      } catch (e) {
+        say("Could not keep that copy for the restart (" + e.message +
+            "). Reload the page and choose it again.", true);
+      }
+    }
     $("ipa").addEventListener("change", () => {
       const f = $("ipa").files && $("ipa").files[0];
-      if (f) loadIpa(f, false);
+      if (!f) return;
+      if (failed) restartWith(() => window.UMK3IPAStore.saveIpa(f));
+      else loadIpa(f, false);
     });
     $("app-folder").addEventListener("change", () => {
       const fs = $("app-folder").files;
-      if (fs && fs.length) loadFolder(Array.from(fs));
+      if (!fs || !fs.length) return;
+      if (failed)
+        restartWith(async () => {
+          /* saveAssets keeps the selected files themselves; the selection
+           * callback has them, so the reading stops there. */
+          const STOP = {};
+          try {
+            await window.UMK3IPA.readAppDirectory(Array.from(fs), null, null,
+              async entries => { await window.UMK3IPAStore.saveAssets(entries); throw STOP; },
+              OPTIONS);
+          } catch (e) {
+            if (e !== STOP) throw e;
+          }
+        });
+      else loadFolder(Array.from(fs));
     });
 
     window.startPage = async function() {
@@ -351,7 +401,7 @@
           clearBtn.disabled = false;
           pickers(false);
           try {
-            const mount = makeMounter(await module.umk3AssetMountReady);
+            const mount = makeMounter(await mountReady());
             say("Restoring your saved copy…");
             await window.UMK3IPA.readSavedAssets(assets, progress, e => mount.mount(e));
             say("Starting…");

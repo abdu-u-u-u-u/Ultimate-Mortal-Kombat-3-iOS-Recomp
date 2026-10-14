@@ -470,6 +470,9 @@ static void parse_taps(const char *s)
 }
 
 void umk3_relocate_level_info(void);   /* build/level_info.c */
+#ifdef UMK3_RUNTIME_TABLES
+#include "umk3_tables_rt.h"
+#endif
 extern int PortHideControls;           /* GameCode.c: hide_controls=1 */
 
 /* umk3.ini beside the exe, written by the launcher (tools/launcher):
@@ -1288,6 +1291,25 @@ int main(int argc, char **argv)
     lime_gl_set_screen(VIRT_W, VIRT_H);
 
     start_app();
+#ifdef UMK3_RUNTIME_TABLES
+    /* The browser build carries the tables' layout and none of their bytes:
+     * they come from the player's own executable, which the page wrote
+     * beside res/ (web/game.html; runtime/umk3_tables_rt.h). First, before
+     * anything reads them. */
+    {
+        char exe[1100], err[256];
+        size_t n = strlen(root);
+
+        snprintf(exe, sizeof exe, "%.*s/UMK3",
+                 (int)(n >= 4 && strcmp(root + n - 4, "/res") == 0 ? n - 4 : n),
+                 root);
+        if (umk3_tables_fill_file(exe, err, sizeof err) != 0) {
+            printf("tables: %s\n", err);
+            return 1;
+        }
+        printf("tables: filled from your copy\n");
+    }
+#endif
     /* Before GameCodeInit: the front end and the fight engine have to share
      * one G, H, MKEventQueue and RoundParam -- the storage the fight's tables
      * point into -- before anything is written through them. */
@@ -1567,6 +1589,15 @@ int main(int argc, char **argv)
                 last_add = FE_FadeAdd;
                 last_dq = DontQuitAfterFade;
             }
+#ifdef __EMSCRIPTEN__
+            {
+                static int said;        /* web/game.html waits for this line */
+                if (!said && CurrentTask == 3) {
+                    printf("front end ready\n");
+                    said = 1;
+                }
+            }
+#endif
             if (log_tasks && (CurrentTask != last_task
                               || FE_CurrentTask != last_fe)) {
                 printf("tick %ld: task %d, front-end task %d\n",
