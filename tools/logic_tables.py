@@ -117,6 +117,7 @@ any build.
 """
 
 import os
+import re
 import struct
 import sys
 import bisect
@@ -180,6 +181,75 @@ def c_name(binary_name):
     prefix, and a function-local static's `.N` suffix is not a C identifier."""
     n = binary_name[1:] if binary_name.startswith("_") else binary_name
     return n.replace(".", "_")
+
+
+LOGIC_SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "decomp", "gamecode", "logic")
+_DEFN = re.compile(r"^(?!static\b)(?!typedef\b)(?!extern\b)([A-Za-z_][\w \t*]*?[\s*])(\w+)\s*\(",
+                   re.M)
+
+
+def _abi_type(t):
+    """A C type as wasm32 passes it: every pointer and integer up to 32 bits
+    is one i32 (`long`), so only void, float, double and 64-bit integers keep
+    their own spelling. Enough to give a declaration its definition's shape."""
+    t = " ".join(re.sub(r"\b(const|volatile|struct|union|enum|register|inline)\b",
+                        " ", t).split())
+    if "*" in t or "(" in t or "[" in t:
+        return "long"
+    if re.search(r"\bdouble\b", t):
+        return "double"
+    if re.search(r"\bfloat\b", t):
+        return "float"
+    if re.search(r"\blong long\b|\bu?int64_t\b", t):
+        return "long long"
+    if t == "void":
+        return "void"
+    return "long"
+
+
+def logic_prototypes(names, src_dir=LOGIC_SRC):
+    """{name: prototype} for the functions in `names` that have a global
+    definition in decomp/gamecode/logic, each spelled with the ABI-equivalent
+    types _abi_type gives -- what --layout declares them as under wasm. A name
+    with no definition there is left out (the caller falls back)."""
+    wanted, protos = set(names), {}
+    try:
+        files = sorted(f for f in os.listdir(src_dir) if f.endswith(".c"))
+    except OSError:
+        return protos
+    for fn in files:
+        with open(os.path.join(src_dir, fn), encoding="utf-8", errors="replace") as f:
+            text = f.read()
+        for m in _DEFN.finditer(text):
+            name = m.group(2)
+            if name not in wanted or name in protos:
+                continue
+            i, depth = m.end(), 1               # just past the "("
+            while i < len(text) and depth:
+                depth += {"(": 1, ")": -1}.get(text[i], 0)
+                i += 1
+            rest = text[i:i + 200].lstrip()
+            while rest.startswith("/*"):        # a comment before the body
+                rest = rest[rest.find("*/") + 2:].lstrip()
+            if not rest.startswith("{"):
+                continue                        # a declaration, not the definition
+            params, depth, cur = [], 0, ""
+            for c in text[m.end():i - 1]:
+                if c == "," and depth == 0:
+                    params.append(cur)
+                    cur = ""
+                    continue
+                depth += {"(": 1, ")": -1}.get(c, 0)
+                cur += c
+            params.append(cur)
+            params = [p.strip() for p in params if p.strip()]
+            if params == ["void"] or not params:
+                plist = "void"
+            else:
+                plist = ", ".join("..." if p == "..." else _abi_type(p) for p in params)
+            protos[name] = "%s %s(%s)" % (_abi_type(m.group(1)), name, plist)
+    return protos
 
 
 def analyse(binpath, mappath, report):
@@ -500,10 +570,16 @@ def emit_layout(t):
     out.extend(SECTION_LINES)
     out.append("")
     out.append("/* A function a table points at. wasm-ld keeps functions and data apart")
-    out.append(" * and refuses one declared as `char[]`; only its address is taken here,")
-    out.append(" * so any prototype will do. */")
+    out.append(" * and refuses one declared as `char[]`; and a declaration whose shape")
+    out.append(" * differs from the definition's makes wasm-ld hand this file a stub that")
+    out.append(" * traps (\"function signature mismatch\"), so the table would point at the")
+    out.append(" * stub. Each is declared with the shape of its definition in")
+    out.append(" * decomp/gamecode/logic, as wasm32 passes it (logic_prototypes()). */")
     out.append("#if defined(__wasm__)")
-    out.append("#define UMK3_LOGIC_FN(f) extern void f(void)")
+    protos = logic_prototypes(t.fn_refs)
+    for f in sorted(t.fn_refs):
+        out.append("%s;" % protos.get(f, "void %s(void)" % f))
+    out.append("#define UMK3_LOGIC_FN(f) extern __typeof__(f) f")
     out.append("#else")
     out.append("#define UMK3_LOGIC_FN(f) extern char f[]")
     out.append("#endif")

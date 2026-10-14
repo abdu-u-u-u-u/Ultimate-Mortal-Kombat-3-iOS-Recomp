@@ -31,7 +31,8 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 IN=$1
 OUT=${2:-$ROOT/build-web/game}
 PY=${PYTHON:-python3}
-command -v "$PY" >/dev/null 2>&1 || PY=python
+# Windows ships a python3 that only opens the Store: try it, not just find it.
+"$PY" -c 'import sys' >/dev/null 2>&1 || PY=python
 command -v emcc >/dev/null 2>&1 || { echo "emcc not on PATH: source toolchain/emsdk/emsdk_env.sh" >&2; exit 1; }
 JOBS=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}
 
@@ -58,7 +59,9 @@ esac
 
 # ---- 2. the tables' layout (no game bytes), checked against the binary
 "$PY" -I "$ROOT/tools/logic_tables.py" "$BIN" "$SCRATCH/logic_tables_layout.c" --layout
-"$PY" -I "$ROOT/tools/check_logic_tables.py" "$BIN"
+# check_logic_tables.py writes the full tables (game bytes) to a temp
+# directory and leaves it: point it at the scratch, which goes at exit.
+TMPDIR=$SCRATCH TEMP=$SCRATCH TMP=$SCRATCH "$PY" -I "$ROOT/tools/check_logic_tables.py" "$BIN"
 
 # ---- 3. compile
 cd "$ROOT"
@@ -98,7 +101,9 @@ xargs -P "$JOBS" -I{} sh -c 'f="$1"; o="$SCRATCH/obj/$(printf %s "$f" | tr "/\\\
 # globals, zero-filled -- is about 67 MB before the first allocation.
 #
 # -lidbfs.js and web/save_mount.js keep the game's saves in the browser.
-emcc -O2 "$SCRATCH"/obj/*.o -o "$OUT/umk3.html" \
+# LDFLAGS_EXTRA: e.g. --profiling-funcs, to keep function names for debugging.
+# shellcheck disable=SC2086
+emcc -O2 "$SCRATCH"/obj/*.o -o "$OUT/umk3.html" ${LDFLAGS_EXTRA:-} \
     -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sSDL2_MIXER_FORMATS=mp3 \
     -sLEGACY_GL_EMULATION=1 -sGL_UNSAFE_OPTS=0 -sGL_FFP_ONLY=1 \
     -sASYNCIFY=1 -sASYNCIFY_IGNORE_INDIRECT=1 \
@@ -106,6 +111,7 @@ emcc -O2 "$SCRATCH"/obj/*.o -o "$OUT/umk3.html" \
     -sINVOKE_RUN=1 -sINITIAL_MEMORY=134217728 \
     -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=4294967296 \
     -sFORCE_FILESYSTEM=1 -sSTACK_SIZE=1048576 -lidbfs.js \
+    -sEXPORTED_RUNTIME_METHODS=UTF8ToString \
     --js-library web/mp_webrtc.js \
     --shell-file web/game.html \
     --pre-js web/asset_mount.js \

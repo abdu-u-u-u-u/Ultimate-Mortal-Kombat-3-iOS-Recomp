@@ -1800,7 +1800,7 @@ extern uintptr_t funcs_14239[];   /* _funcs.N: a table, not code */
  * linked on i686; wasm-ld refuses a function and a data symbol of one
  * name. */
 extern uintptr_t rpt_cornered[];
-long rpt_elbow_knee(struct MK3THREAD *thread);
+extern uintptr_t rpt_elbow_knee[];   /* a table, not code: see rpt_cornered */
 long t_d_bflip_jump(struct MK3THREAD *thread);
 long t_d_fflip_kick_jump(struct MK3THREAD *thread);
 long t_d_zap_now(struct MK3THREAD *thread);
@@ -3607,7 +3607,7 @@ void is_he_body_propell(MK3OBJ *obj);
 void get_his_proj_proc(MK3OBJ *obj);
 void q_his_proj_proc(MK3OBJ *obj);
 void beh1(MK3OBJ *obj);
-long rpt_counter(struct MK3THREAD *thread);
+extern uintptr_t rpt_counter[];   /* a table, not code: see rpt_cornered */
 
 /* get_his_y_vel -- armv7 0x00068dd8: obj->field1c = him->field1c */
 void get_his_y_vel(MK3OBJ *obj)
@@ -4837,7 +4837,7 @@ long t_watch_flip_kick(struct MK3THREAD *thread);
 long t_retreat_wait_yes(struct MK3THREAD *thread);
 long t_d_turnaround_jsrp(struct MK3THREAD *thread);
 long t_drone_zone(struct MK3THREAD *thread);
-long rpt_promoves(struct MK3THREAD *thread);
+extern uintptr_t rpt_promoves[];   /* a table, not code: see rpt_cornered */
 long t_d_fflip_scan_jsrp(struct MK3THREAD *thread);
 long t_fflip_watchout(struct MK3THREAD *thread);
 void stance_setup(MK3OBJ *obj);
@@ -9328,7 +9328,7 @@ long t_d_block_projectile(struct MK3THREAD *thread);
 long t_run_then_flipk(struct MK3THREAD *thread);
 long t_run_then_duck_under(struct MK3THREAD *thread);
 long t_nr_jump_over_proj(struct MK3THREAD *thread);
-long rpt_angle(struct MK3THREAD *thread);
+extern uintptr_t rpt_angle[];   /* a table, not code: see rpt_cornered */
 long am_i_short(MK3OBJ *obj);
 void d_to_normal(MK3OBJ *obj);
 void stance_setup(MK3OBJ *obj);
