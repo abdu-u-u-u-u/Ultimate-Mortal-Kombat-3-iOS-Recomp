@@ -39,6 +39,8 @@ addToLibrary({
     state: 0,
     ws: null,
     wsReady: false,
+    retryMs: 0,             /* the lobby socket's next reconnect delay */
+    retryTimer: null,
     myId: null,
     ice: [],
     wantLobby: false,
@@ -74,6 +76,7 @@ addToLibrary({
 
     open: function() {
       if (UMK3NET.ws) return;
+      if (UMK3NET.retryTimer) { clearTimeout(UMK3NET.retryTimer); UMK3NET.retryTimer = null; }
       var ws;
       try {
         ws = new WebSocket(UMK3NET.signalUrl());
@@ -86,6 +89,8 @@ addToLibrary({
       UMK3NET.wsReady = false;
       ws.onopen = function() {
         UMK3NET.wsReady = true;
+        UMK3NET.retryMs = 0;
+        UMK3NET.log('lobby: connected, room ' + UMK3NET.room());
         UMK3NET.send({ t: 'hello', v: 1, build: String(UMK3NET.build),
                        name: UMK3NET.name(), room: UMK3NET.room() });
       };
@@ -94,13 +99,30 @@ addToLibrary({
         try { m = JSON.parse(ev.data); } catch (e) { return; }
         UMK3NET.onSignal(m);
       };
-      ws.onclose = function() {
+      ws.onclose = function(ev) {
+        if (UMK3NET.ws !== ws) return;          /* an older socket, replaced */
         UMK3NET.ws = null;
         UMK3NET.wsReady = false;
+        UMK3NET.myId = null;
         UMK3NET.peers = [];
-        /* A match in progress keeps its data channel; only the lobby is gone. */
-        if (UMK3NET.state === UMK3NET.LOBBY || UMK3NET.state === UMK3NET.CONNECTING)
-          UMK3NET.state = UMK3NET.CLOSED;
+        UMK3NET.inviteSent = null;
+        UMK3NET.invitation = null;
+        UMK3NET.log('lobby: lost the server (' + ev.code + (ev.reason ? ' ' + ev.reason : '') + ')');
+        /* A match in progress keeps its data channel; only the lobby is gone,
+         * and the next lobby visit reconnects. In the lobby, or setting up a
+         * link the server was still relaying, reconnect -- a server restart,
+         * a sleeping laptop or a changed network must not leave a player
+         * listed nowhere until they leave the screen. */
+        if (UMK3NET.state === UMK3NET.CONNECTING && UMK3NET.partner)
+          UMK3NET.closeRtc('lobby lost while connecting');
+        if (UMK3NET.wantLobby && !UMK3NET.partner) {
+          UMK3NET.state = UMK3NET.LOBBY;
+          UMK3NET.retryMs = Math.min(UMK3NET.retryMs ? UMK3NET.retryMs * 2 : 1000, 15000);
+          UMK3NET.retryTimer = setTimeout(function() {
+            UMK3NET.retryTimer = null;
+            if (UMK3NET.wantLobby && !UMK3NET.partner) UMK3NET.open();
+          }, UMK3NET.retryMs);
+        }
       };
       ws.onerror = function() {};
     },
@@ -277,6 +299,8 @@ addToLibrary({
   mpnet_stop__deps: ['$UMK3NET'],
   mpnet_stop: function() {
     UMK3NET.wantLobby = false;
+    if (UMK3NET.retryTimer) { clearTimeout(UMK3NET.retryTimer); UMK3NET.retryTimer = null; }
+    UMK3NET.retryMs = 0;
     UMK3NET.closeRtc('left multiplayer');
     UMK3NET.send({ t: 'lobby', on: false });
     if (UMK3NET.ws) { try { UMK3NET.ws.close(); } catch (e) {} }

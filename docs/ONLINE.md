@@ -25,7 +25,12 @@ way `UpdateArcadeCode` splits it. What is new is the radio.
 
 1. Main menu → *Multiplayer*: `startMP` puts the player in the lobby of their
    room (`?room=` in the page's URL, `public` by default). The lobby lists the
-   others with the same screen open, five at most (the screen's limit).
+   others with the same screen open, five at most (the screen's limit). The
+   room comes from the link alone and is never remembered or made up: a page
+   opened from the plain link is in the public lobby, and *Copy invite link*
+   copies the link to the lobby the page is in. The online chip names the
+   room and says whether the page has reached the lobby server; a dropped
+   lobby connection reconnects by itself.
 2. A tap on a name invites that player. A player in the lobby accepts
    automatically: being on that screen is what being listed means, and the
    decompiled front end has no accept dialog. Two players who tap each other

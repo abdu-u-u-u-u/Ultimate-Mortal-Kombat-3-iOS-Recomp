@@ -47,7 +47,7 @@ function page(url, name) {
     const ctx = {
         Module: { umk3SignalUrl: url, umk3PlayerName: name, umk3Room: 'test', umk3NetLog() {} },
         location: { protocol: 'http:', host: 'test', search: '' },
-        URLSearchParams, WebSocket, JSON, Math, console,
+        URLSearchParams, WebSocket, JSON, Math, console, setTimeout, clearTimeout,
         RTCPeerConnection: FakePeerConnection,
         HEAPU8: new Uint8Array(256),
         stringToUTF8(s, ptr, n) { ctx.lastString = s; },
@@ -62,12 +62,18 @@ function page(url, name) {
     return { ctx, net: ctx.UMK3NET, call, rtc };
 }
 
-async function withServer(fn) {
-    const port = await freePort();
+async function startServer(port) {
     const srv = spawn(process.execPath, [path.join(__dirname, '..', 'signal.js')],
                       { env: { ...process.env, UMK3_SIGNAL_PORT: String(port) }, stdio: 'pipe' });
+    await new Promise(r => srv.stdout.once('data', r));
+    srv.stdout.resume();                // its event log must not fill the pipe
+    return srv;
+}
+
+async function withServer(fn) {
+    const port = await freePort();
+    const srv = await startServer(port);
     try {
-        await new Promise(r => srv.stdout.once('data', r));
         await fn(`ws://127.0.0.1:${port}/signal`);
     } finally {
         srv.kill();
@@ -129,4 +135,26 @@ test('two players who invite each other at once are paired once', async () => {
         assert.equal(a.rtc.length + b.rtc.length, 2);
         close(a, b);
     });
+});
+
+test('a lobby that loses the server reconnects and lists the players again', async () => {
+    const port = await freePort();
+    let srv = await startServer(port);
+    try {
+        const url = `ws://127.0.0.1:${port}/signal`;
+        const [a, b] = await lobbyPair(url);
+        srv.kill();                     // a server restart, a network change
+        await new Promise(r => srv.once('exit', r));
+        await until('both to notice', () => a.net.myId === null && b.net.myId === null);
+        assert.equal(a.call('mpnet_state'), 1);      // still in the lobby: retrying
+        assert.equal(a.net.peers.length, 0);
+        srv = await startServer(port);
+        await until('both to be listed again',
+                    () => a.net.peers.length === 1 && b.net.peers.length === 1, 10000);
+        assert.ok(a.net.myId && b.net.myId);
+        close(a, b);
+        assert.equal(a.net.retryTimer, null);
+    } finally {
+        srv.kill();
+    }
 });

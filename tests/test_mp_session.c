@@ -26,6 +26,7 @@ static int failures;
 static int    net_state = MPNET_OFF, net_host, net_invited = -1, net_inviting;
 static uint8_t q[256][512];
 static int    qlen[256], qhead, qcount, sent_count;
+static int    readies_sent;     /* packets of type 2, MPK_READY in mp_session.c */
 
 void mpnet_start(unsigned build)  { (void)build; net_state = MPNET_LOBBY; }
 void mpnet_stop(void)             { net_state = MPNET_OFF; }
@@ -47,6 +48,8 @@ int mpnet_send(const void *p, int len)
     qlen[(qhead + qcount) % 256] = len;
     qcount++;
     sent_count++;
+    if (len > 0 && ((const uint8_t *)p)[0] == 2)
+        readies_sent++;
     return 1;
 }
 
@@ -211,6 +214,24 @@ int main(void)
     CurrentTask = 5;
     CHECK(syncGame(1) == 1);                        /* loopback: our own READY */
     CHECK(*(float *)(void *)startTime == 1.0f);
+    {
+        /* Task_GameInit's ask (answer ignored) passed; Task_MultiplayerSync
+         * asks again every frame and must still pass, sending nothing. */
+        int before = readies_sent;
+        CurrentTask = 9;
+        frame();
+        CHECK(syncGame(10) == 1);
+        CHECK(syncGame(11) == 1);
+        CHECK(readies_sent == before);
+        /* The fight runs, so the next load says READY again and waits. */
+        CurrentTask = 6;
+        frame();
+        CurrentTask = 5;
+        CHECK(syncGame(1) == 1);                    /* the loopback answers again */
+        CHECK(readies_sent == before + 1);
+        CurrentTask = 6;
+        frame();
+    }
 
     /* ---- the guest's stick reaches the host one word a frame ---- */
     connect_as(1);

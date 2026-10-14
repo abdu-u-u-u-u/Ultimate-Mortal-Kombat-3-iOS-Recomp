@@ -102,10 +102,18 @@ xargs -P "$JOBS" -I{} sh -c 'f="$1"; o="$SCRATCH/obj/$(printf %s "$f" | tr "/\\\
 #
 # -lidbfs.js and web/save_mount.js keep the game's saves in the browser.
 # LDFLAGS_EXTRA: e.g. --profiling-funcs, to keep function names for debugging.
+#
+# $warnOnce: the GL emulation's glShadeModel stub and several of its
+# immediate-mode paths call warnOnce without declaring it as a dependency
+# (src/lib/libglemu.js, Emscripten 6.0.12), so nothing links it in and the
+# first call throws a ReferenceError that ends the main loop. LIME's mesh
+# renderer calls glShadeModel for every 3D model, starting with the fighter
+# a player picks on the select screen.
 # shellcheck disable=SC2086
 emcc -O2 "$SCRATCH"/obj/*.o -o "$OUT/umk3.html" ${LDFLAGS_EXTRA:-} \
     -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sSDL2_MIXER_FORMATS=mp3 \
     -sLEGACY_GL_EMULATION=1 -sGL_UNSAFE_OPTS=0 -sGL_FFP_ONLY=1 \
+    '-sDEFAULT_LIBRARY_FUNCS_TO_INCLUDE=$warnOnce' \
     -sASYNCIFY=1 -sASYNCIFY_IGNORE_INDIRECT=1 \
     -sEMULATE_FUNCTION_POINTER_CASTS=1 \
     -sINVOKE_RUN=1 -sINITIAL_MEMORY=134217728 \

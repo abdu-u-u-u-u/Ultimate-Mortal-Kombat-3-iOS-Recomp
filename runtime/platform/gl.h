@@ -36,4 +36,19 @@
 #  include <GL/gl.h>
 #endif
 
+#ifdef __EMSCRIPTEN__
+/* Emscripten's GL 1 emulation throws where a GL driver records an error and
+ * carries on, and a throw ends the browser game's main loop. The engine
+ * leans on the driver's behaviour once: LIME_RenderEvents calls
+ * glMatrixMode(GL_MODELVIEW_MATRIX) for every scene event, as the binary
+ * does -- GL_INVALID_ENUM and no change on the device. The modes the
+ * emulation knows go through; any other is the device's no-op. */
+static inline void umk3_glMatrixMode(GLenum mode)
+{
+    if (mode == GL_MODELVIEW || mode == GL_PROJECTION || mode == GL_TEXTURE)
+        glMatrixMode(mode);
+}
+#  define glMatrixMode umk3_glMatrixMode
+#endif
+
 #endif

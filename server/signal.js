@@ -94,6 +94,22 @@ function iceServers(id) {
     return list;
 }
 
+/* One line per lobby event, to the journal: enough to tell why two players
+ * do not see each other (another room, another build, a socket that never
+ * opened or dropped). Connection ids only; no addresses, nothing a page sent
+ * beyond its name and room. */
+function log(...parts) {
+    console.log(parts.join(' '));
+}
+
+function roomCount(room, build) {
+    let n = 0;
+    for (const o of clients.values())
+        if (o.inLobby && !o.partner && o.room === room && o.build === build)
+            n++;
+    return n;
+}
+
 function send(c, msg) {
     if (c.ws.readyState === c.ws.OPEN)
         c.ws.send(JSON.stringify(msg));
@@ -186,6 +202,7 @@ function onMessage(c, raw) {
          * the sprite list is this port's memory layout, not a fixed format. */
         c.build = String(m.build || '').slice(0, 64);
         clearTimeout(c.helloTimer);
+        log('hello', c.id, `room=${c.room}`, `build=${c.build}`, `name=${c.name}`);
         send(c, { t: 'welcome', id: c.id, ice: iceServers(c.id) });
         return;
     }
@@ -198,6 +215,8 @@ function onMessage(c, raw) {
         if (c.inLobby && !c.partner)
             send(c, { t: 'peers', list: lobbyFor(c) });
         broadcastLobby(c.room, c.build);
+        log('lobby', c.id, c.inLobby ? 'on' : 'off', `room=${c.room}`,
+            `listed=${roomCount(c.room, c.build)}`);
         break;
 
     case 'invite':
@@ -205,6 +224,7 @@ function onMessage(c, raw) {
             || to.room !== c.room || to.build !== c.build)
             return send(c, { t: 'answered', from: m.to, accept: false });
         to.pendingFrom.add(c.id);
+        log('invite', c.id, '->', to.id);
         send(to, { t: 'invited', from: c.id, name: c.name });
         break;
 
@@ -213,6 +233,7 @@ function onMessage(c, raw) {
             return;
         c.pendingFrom.delete(to.id);
         if (!m.accept || c.partner || to.partner) {
+            log('decline', c.id, '->', to.id);
             send(to, { t: 'answered', from: c.id, accept: false });
             return;
         }
@@ -220,6 +241,7 @@ function onMessage(c, raw) {
         c.partner = to.id;
         to.partner = c.id;
         c.pendingFrom.clear();
+        log('paired', c.id, '(host)', to.id);
         send(to, { t: 'answered', from: c.id, accept: true });
         send(c,  { t: 'paired', peer: to.id, name: to.name, host: true });
         send(to, { t: 'paired', peer: c.id, name: c.name, host: false });
@@ -233,6 +255,8 @@ function onMessage(c, raw) {
         break;
 
     case 'leave':
+        if (c.partner)
+            log('leave', c.id);
         unpair(c, true);
         broadcastLobby(c.room, c.build);
         break;
@@ -266,6 +290,7 @@ wss.on('connection', ws => {
     };
     c.helloTimer = setTimeout(() => ws.close(1008, 'no hello'), HELLO_TIMEOUT_MS);
     clients.set(c.id, c);
+    log('open', c.id, `clients=${clients.size}`);
 
     ws.on('pong', () => { c.alive = true; });
     ws.on('message', (data, isBinary) => {
@@ -275,9 +300,10 @@ wss.on('connection', ws => {
         }
         onMessage(c, data.toString('utf8'));
     });
-    ws.on('close', () => {
+    ws.on('close', (code, reason) => {
         clearTimeout(c.helloTimer);
         drop(c);
+        log('close', c.id, code, String(reason || '').slice(0, 32), `clients=${clients.size}`);
     });
     ws.on('error', () => {});
 });
@@ -286,6 +312,7 @@ wss.on('connection', ws => {
 setInterval(() => {
     for (const c of clients.values()) {
         if (!c.alive) {
+            log('timeout', c.id);
             c.ws.terminate();
             continue;
         }

@@ -164,7 +164,16 @@ static double   g_last_rx, g_last_tx, g_grace_until;
 static int      g_hb_on;
 static double   g_hb_timeout;
 
-static int      g_ready_sent, g_peer_ready;
+/* The load barrier, once a fight: IDLE, WAITING once this side has sent its
+ * READY, PASSED once the peer's is in. PASSED holds until the fight runs
+ * (heartbeatUpdate re-arms it in TASK_FIGHT). The game asks twice per load --
+ * Task_GameInit once as the load ends, ignoring the answer, then
+ * Task_MultiplayerSync every frame until 1 -- and a pass spent on the first
+ * ask left the second waiting for a READY the peer would never send again:
+ * the player who loaded last sat on "Syncing game" while the other started
+ * the round alone. */
+enum { SYNC_IDLE, SYNC_WAITING, SYNC_PASSED };
+static int      g_sync, g_peer_ready;
 
 static SPRITES  g_spr[SPRITE_QUEUE];
 static int      g_spr_head, g_spr_len;
@@ -224,7 +233,8 @@ static void queues_clear(void)
 static void session_reset(void)
 {
     g_session = g_host = g_dropped = g_gone_screen = 0;
-    g_ready_sent = g_peer_ready = 0;
+    g_sync = SYNC_IDLE;
+    g_peer_ready = 0;
     g_hb_on = 0;
     g_peer_set_pause = 0;
     g_menu4_pending = 0;
@@ -659,6 +669,8 @@ void heartbeatUpdate(void)
     }
     if (!g_session)
         return;
+    if (g_sync == SYNC_PASSED && CurrentTask == TASK_FIGHT)
+        g_sync = SYNC_IDLE;             /* the fight runs: the next load waits again */
 
     pump();
     t = now();
@@ -687,18 +699,17 @@ long syncGame(long frame)
     (void)frame;
     if (!g_session || g_dropped)
         return 1;
-    if (!g_ready_sent) {
+    if (g_sync == SYNC_IDLE) {
         send_ints(MPK_READY, 0, 0, 0);
-        g_ready_sent = 1;
+        g_sync = SYNC_WAITING;
     }
     pump();
-    if (g_peer_ready > 0) {
+    if (g_sync == SYNC_WAITING && g_peer_ready > 0) {
         g_peer_ready--;
-        g_ready_sent = 0;
+        g_sync = SYNC_PASSED;
         g_fight_ended = 0;              /* a new fight starts */
-        return 1;
     }
-    return 0;
+    return g_sync == SYNC_PASSED;
 }
 
 /* -------------------------------------------------------------- sending ---- */

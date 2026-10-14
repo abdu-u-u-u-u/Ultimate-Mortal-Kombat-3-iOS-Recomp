@@ -82,7 +82,7 @@
       <label for="room">Room</label>
       <input id="room" type="text" maxlength="24" placeholder="public" spellcheck="false"
              title="Players only see each other in the same room. Leave empty for the public lobby.">
-      <button id="copy-link" type="button" title="Copy a link that opens this room">Copy room link</button>
+      <button id="copy-link" type="button" title="Copy a link that opens this lobby">Copy invite link</button>
     </div>
 
     <div class="row">
@@ -112,8 +112,9 @@
       <summary>How to play</summary>
       <table>
         <tr><td>Online</td><td>Main menu → <b>Multiplayer</b>. Everyone with that screen
-          open in the same room is listed; pick a player to challenge them. Send a
-          friend the room link to play privately.</td></tr>
+          open in the same room is listed; pick a player to challenge them. Everyone
+          starts in the public lobby. To play privately, type any room name and send
+          your friend the invite link.</td></tr>
         <tr><td>Controller</td><td>Stick or d-pad moves · X high punch · A low punch · Y high
           kick · B low kick · RB block · LB/RT run · LT special · Start pause · Back moves list.
           In menus the stick moves a pointer and A taps.</td></tr>
@@ -146,7 +147,8 @@
       status.classList.toggle("bad", !!bad);
     }
 
-    /* ---- name and room: remembered, and the room can come from the link ---- */
+    /* ---- name: remembered. Room: the link's only. A remembered room would
+     * hide a returning player from everyone who opens the plain link. ---- */
     const params = new URLSearchParams(location.search);
     function stored(key, fallback) {
       try { return localStorage.getItem(key) || fallback; } catch (e) { return fallback; }
@@ -156,7 +158,14 @@
     }
     const nameInput = $("name"), roomInput = $("room");
     nameInput.value = stored("umk3.name", "PLAYER" + Math.floor(1000 + Math.random() * 9000));
-    roomInput.value = params.get("room") || stored("umk3.room", "");
+    roomInput.value = cleanRoom(params.get("room") || "");
+    try { localStorage.removeItem("umk3.room"); } catch (e) {}
+    /* The address bar carries the room, so a reload or a copied URL keeps it. */
+    function showRoom(room) {
+      const url = new URL(location.href);
+      if (room) url.searchParams.set("room", room); else url.searchParams.delete("room");
+      history.replaceState(null, "", url);
+    }
     function cleanName(s) { return s.toUpperCase().replace(/[^A-Z0-9 _.-]/g, "").trim().slice(0, 12); }
     function cleanRoom(s) { return s.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 24); }
     nameInput.addEventListener("change", () => {
@@ -165,17 +174,19 @@
     });
     roomInput.addEventListener("change", () => {
       roomInput.value = cleanRoom(roomInput.value);
-      store("umk3.room", roomInput.value);
+      showRoom(roomInput.value);
     });
     store("umk3.name", nameInput.value);
+    /* The link to the lobby this page is in. It never invents a room: two
+     * friends who each press it must still end up together. */
     $("copy-link").addEventListener("click", async () => {
-      const room = cleanRoom(roomInput.value) ||
-        Math.random().toString(36).slice(2, 8);
+      const room = cleanRoom(roomInput.value);
       roomInput.value = room;
-      store("umk3.room", room);
-      const url = location.origin + location.pathname + "?room=" + room;
-      try { await navigator.clipboard.writeText(url); say("Room link copied: " + url); }
-      catch (e) { say("Room link: " + url); }
+      showRoom(room);
+      const url = location.origin + "/" + (room ? "?room=" + room : "");
+      const where = room ? "room " + room : "the public lobby";
+      try { await navigator.clipboard.writeText(url); say("Copied " + url + " -- it opens " + where + "."); }
+      catch (e) { say("Invite link (" + where + "): " + url); }
     });
 
     /* ---- the program ---- */
@@ -227,10 +238,41 @@
           say("Preparing…");
       },
       onAbort(reason) {
-        say("The game stopped: " + reason + "\nThe log below has the details.", true);
-        log("ABORT: " + reason);
+        gameStopped(reason);
       },
     };
+
+    /* The game's main loop runs inside ASYNCIFY's promises, so a trap in it
+     * (a wasm RuntimeError, or a JS error in a library function it called)
+     * arrives as an unhandled rejection, not at onAbort, and used to leave
+     * a frozen picture and nothing else. Say so, and hang up an online
+     * match: the opponent gets the game's Disconnected screen now rather
+     * than after the heartbeat runs out, and this page leaves the lobby. */
+    let stoppedSaid = false;
+    function gameStopped(reason) {
+      log("STOPPED: " + reason);
+      if (stoppedSaid) return;
+      stoppedSaid = true;
+      say("The game stopped: " + reason + "\nReload the page to play again. The log below has the details.", true);
+      const net = module.umk3Net;
+      if (net) {
+        net.wantLobby = false;
+        if (net.retryTimer) clearTimeout(net.retryTimer);
+        net.closeRtc("this player's game stopped");
+        if (net.ws) try { net.ws.close(); } catch (e) {}
+      }
+    }
+    /* Only the program's own errors: a frame in the wasm or in umk3.js, or a
+     * bare string, which Emscripten's library code throws (the page's own
+     * code never does). */
+    function onUncaught(e) {
+      const stack = e && e.stack ? String(e.stack) : String(e);
+      if (typeof e === "string" || /wasm-function|umk3\.js/.test(stack))
+        gameStopped(stack.split("\n").slice(0, 4).join("\n"));
+      else log("error: " + stack);
+    }
+    window.addEventListener("unhandledrejection", ev => onUncaught(ev.reason));
+    window.addEventListener("error", ev => { if (ev.error) onUncaught(ev.error); });
 
     /* ---- the chips: controller and online state ---- */
     function padName() {
@@ -245,7 +287,14 @@
       let text = "Offline", on = false;
       if (net) {
         switch (net.state) {
-        case 1: text = "Lobby" + (net.peers.length ? " · " + net.peers.length + " online" : " · waiting for players"); on = true; break;
+        case 1: {
+          const room = net.room();
+          const where = room === "public" ? "Public lobby" : "Room " + room;
+          text = !net.myId ? where + " · connecting to the server…"
+               : where + (net.peers.length ? " · " + net.peers.length + " online" : " · nobody else here yet");
+          on = !!net.myId;
+          break;
+        }
         case 2: text = "Connecting…"; on = true; break;
         case 3: text = "Playing " + (net.partner ? net.partner.name : "online") +
                        (net.partner && net.partner.host ? " (you host)" : ""); on = true; break;

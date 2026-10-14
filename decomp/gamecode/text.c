@@ -9,6 +9,7 @@
  * Verified against the oracle by tests/test_text_diff.c.
  */
 
+#include <stdarg.h>
 #include <stdint.h>
 #include <string.h>   /* strlen, for asciiToUnicode */
 
@@ -619,10 +620,18 @@ long processString(char *dst, const char *fmt, long len, const long *args,
  */
 long usprintf(char *dst, const char *fmt, ...)
 {
-    /* The varargs are pushed as a block by the prologue -- `push {r1, r2, r3}`
-     * before the frame -- so `args` is that block, read as words. */
-    const long *args = (const long *)((const char *)&fmt + sizeof fmt);
-    long len, n;
+    /* On the device the varargs are pushed as a block by the prologue --
+     * `push {r1, r2, r3}` before the frame -- and initArguments reads that
+     * block as words. Reading past &fmt found it on ARM and on i686, and in
+     * WebAssembly, which passes varargs in a separate buffer, it read
+     * whatever followed: the first "<name> wins" crashed the browser game.
+     * So the block is rebuilt from va_list, in the layout the device had:
+     * one word for an int, a pointer or a halfword, two for a double. Pass
+     * one only collects the tokens (processString never reads `args`), so
+     * their types are known before a value is taken. */
+    long args[2 * TOKEN_SLOTS];
+    va_list ap;
+    long len, n, w;
     int i;
 
     while (g_usprintfSemaphore != 0)
@@ -637,6 +646,29 @@ long usprintf(char *dst, const char *fmt, ...)
 
     len = strLenUnicode(fmt);
     n   = processString(dst, fmt, len, args, 1);
+
+    va_start(ap, fmt);
+    for (i = 0, w = 0; i < n && i < TOKEN_SLOTS; i++) {
+        switch (listOfTokens[i].type) {
+        case 1:                         /* 's': a pointer */
+            args[w++] = (long)(uintptr_t)va_arg(ap, const void *);
+            break;
+        case 2:                         /* 'd' */
+        case 3:                         /* a halfword, promoted to int */
+            args[w++] = (long)va_arg(ap, int);
+            break;
+        case 4: {                       /* 'f': a double, two words */
+            double d = va_arg(ap, double);
+            memcpy(&args[w], &d, sizeof d);
+            w += 2;
+            break;
+        }
+        default:                        /* initArguments takes no word */
+            break;
+        }
+    }
+    va_end(ap);
+
     initArguments(n, args);
     processString(dst, fmt, len, args, 0);
 
