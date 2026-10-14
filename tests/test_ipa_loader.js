@@ -82,6 +82,42 @@ test("extracts stored and deflated app resources, excluding other IPA files", as
   });
 });
 
+test("extracts the app executable only when asked to", async () => {
+  const ipa = makeZip([
+    { path: "Payload/UMK3.app/res/raw.dat", bytes: "stored" },
+    { path: "Payload/UMK3.app/UMK3", bytes: "mach-o", method: 8 },
+    { path: "Payload/UMK3.app/Info.plist", bytes: "plist" }
+  ]);
+
+  const without = await extractIpaResources(ipa);
+  assert.deepEqual(without.map(file => file.path), ["res/raw.dat", "Info.plist"]);
+
+  const withExe = await extractIpaResources(ipa, null, null, null,
+                                            { includeExecutable: true });
+  assert.deepEqual(withExe.map(file => file.path).sort(),
+                   ["Info.plist", "UMK3", "res/raw.dat"]);
+  assert.equal(Buffer.from(withExe.find(f => f.path === "UMK3").bytes).toString(),
+               "mach-o");
+});
+
+test("reads the executable from an app directory only when asked to", async () => {
+  const files = [
+    new File(["sprite data"], "fight.png"),
+    new File(["app executable"], "UMK3")
+  ];
+  Object.defineProperty(files[0], "webkitRelativePath", {
+    value: "UMK3.app/res/sprites/fight.png"
+  });
+  Object.defineProperty(files[1], "webkitRelativePath", { value: "UMK3.app/UMK3" });
+
+  const { readAppDirectory } = require("../web/ipa.js");
+  assert.deepEqual((await readAppDirectory(files)).map(f => f.path),
+                   ["res/sprites/fight.png"]);
+  assert.deepEqual((await readAppDirectory(files, null, null, null,
+                                           { includeExecutable: true })).map(f => f.path),
+                   ["res/sprites/fight.png", "UMK3"]);
+});
+
 test("streams extracted resources without retaining them in the result", async () => {
   const ipa = makeZip([
     { path: "Payload/UMK3.app/res/a.dat", bytes: "first" },

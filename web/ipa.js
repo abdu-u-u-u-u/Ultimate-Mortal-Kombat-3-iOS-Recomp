@@ -45,7 +45,12 @@
     return new Uint8Array(await new Response(stream).arrayBuffer());
   }
 
-  async function extractIpaResources(file, onProgress, onEntry, onValidated) {
+  /* `options.includeExecutable`: also extract the app's executable
+   * (Payload/<App>.app/<App>), as the bundle file of that name. The full game's
+   * browser build reads its data tables out of it at start-up
+   * (runtime/umk3_tables_rt.c); the menu test page does not ask for it. */
+  async function extractIpaResources(file, onProgress, onEntry, onValidated, options) {
+    const includeExecutable = !!(options && options.includeExecutable);
     if (!file || typeof file.slice !== "function" || !Number.isSafeInteger(file.size))
       throw new Error("El archivo seleccionado no se puede leer como ZIP.");
 
@@ -113,7 +118,8 @@
       const bundleExecutable = bundleMatch &&
         bundleMatch[2].toLowerCase() === appName.slice(0, -4).toLowerCase();
 
-      if ((resourceMatch || (bundleMatch && !bundleExecutable)) && !name.endsWith("/")) {
+      if ((resourceMatch || (bundleMatch && (!bundleExecutable || includeExecutable))) &&
+          !name.endsWith("/")) {
         if (flags & 1)
           throw new Error("Los archivos del IPA están cifrados dentro del ZIP.");
         if (compressedSize === 0xffffffff || size === 0xffffffff ||
@@ -204,7 +210,8 @@
     return extracted;
   }
 
-  async function readAppDirectory(fileList, onProgress, onEntry, onSelected) {
+  async function readAppDirectory(fileList, onProgress, onEntry, onSelected, options) {
+    const includeExecutable = !!(options && options.includeExecutable);
     const files = Array.from(fileList || []);
     if (files.length === 0)
       throw new Error("La carpeta seleccionada no contiene archivos.");
@@ -265,7 +272,11 @@
         const isDirectBundleFile = parts.length === rootParts.length + 1 &&
           rootParts.every((part, index) => parts[index] === part);
         const name = parts[parts.length - 1].toLowerCase();
-        if (isDirectBundleFile && (name === "info.plist" || name === "pkginfo"))
+        const appName = rootParts.length
+          ? rootParts[rootParts.length - 1].toLowerCase() : "";
+        const isExecutable = appName.endsWith(".app") && name === appName.slice(0, -4);
+        if (isDirectBundleFile && (name === "info.plist" || name === "pkginfo" ||
+            (includeExecutable && isExecutable)))
           selected.bundle.push({ file, path: parts[parts.length - 1] });
       }
     }

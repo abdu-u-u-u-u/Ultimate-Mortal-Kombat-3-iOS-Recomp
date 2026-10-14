@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UMK3 Online</title>
+  <!--
+    The full game (the umk3-game target) in the browser, with online play.
+
+    Nothing of the game is on this server. The player picks their own copy of
+    UMK3 1.2.59 for iPhone (.ipa); this page reads it locally, mounts its res/
+    folder and its executable into the WebAssembly program's memory, and the
+    program fills its data tables from that executable at start-up
+    (runtime/umk3_tables_rt.c). The .ipa never leaves the browser. Online play
+    goes browser to browser (web/mp_webrtc.js); the server only introduces the
+    two players (server/signal.js).
+  -->
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0e0d0c; --panel: #1a1816; --text: #eee6da; --dim: #a59b8c;
+      --accent: #d9a441; --bad: #ff7a6b; --ok: #8fd18b;
+      font: 15px/1.45 system-ui, sans-serif;
+    }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    main { max-width: 1120px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 1.35rem; margin: 0 0 4px; letter-spacing: .02em; }
+    h1 span { color: var(--accent); }
+    p { margin: .4em 0; }
+    .dim { color: var(--dim); }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+    label { color: var(--dim); }
+    input[type=text] {
+      background: var(--panel); color: var(--text); border: 1px solid #3a352f;
+      border-radius: 6px; padding: 6px 8px; width: 11em; font: inherit;
+    }
+    button {
+      background: #2a2621; color: var(--text); border: 1px solid #4a4239;
+      border-radius: 6px; padding: 7px 12px; font: inherit; cursor: pointer;
+    }
+    button.primary { background: var(--accent); color: #1a1408; border-color: var(--accent); font-weight: 600; }
+    button:disabled { opacity: .45; cursor: default; }
+    #stage { position: relative; }
+    canvas {
+      display: block; width: 100%; aspect-ratio: 3 / 2; background: #000;
+      border-radius: 6px; outline: none;
+    }
+    #status { min-height: 1.4em; white-space: pre-wrap; }
+    #status.bad { color: var(--bad); }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { background: var(--panel); border: 1px solid #332e28; border-radius: 99px; padding: 2px 10px; color: var(--dim); }
+    .chip.on { color: var(--ok); border-color: #3e5a3c; }
+    details { margin-top: 12px; }
+    summary { cursor: pointer; color: var(--dim); }
+    table { border-collapse: collapse; margin: 6px 0; }
+    td { padding: 2px 14px 2px 0; vertical-align: top; }
+    td:first-child { color: var(--accent); white-space: nowrap; }
+    #log { max-height: 14rem; overflow: auto; color: #b9b0a3; background: var(--panel); padding: 8px; border-radius: 6px; font-size: 12px; }
+    @media (max-width: 600px) { main { padding: 10px; } input[type=text] { width: 9em; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Ultimate Mortal Kombat 3 <span>Online</span></h1>
+    <p class="dim">Bring your own copy: choose the <code>.ipa</code> of UMK3 1.2.59
+       for iPhone. It is read in this browser and never uploaded; it is kept
+       here so the next visit starts straight away.</p>
+
+    <div class="row">
+      <label for="name">Your name</label>
+      <input id="name" type="text" maxlength="12" autocomplete="nickname" spellcheck="false">
+      <label for="room">Room</label>
+      <input id="room" type="text" maxlength="24" placeholder="public" spellcheck="false"
+             title="Players only see each other in the same room. Leave empty for the public lobby.">
+      <button id="copy-link" type="button" title="Copy a link that opens this room">Copy room link</button>
+    </div>
+
+    <div class="row">
+      <button id="pick-ipa" class="primary" type="button" disabled>Choose UMK3 .ipa</button>
+      <button id="pick-folder" type="button" disabled>…or the extracted UMK3.app folder</button>
+      <button id="clear" type="button" disabled>Forget saved copy</button>
+      <button id="fullscreen" type="button">Fullscreen</button>
+      <input id="ipa" type="file" accept=".ipa,application/zip" hidden>
+      <input id="app-folder" type="file" webkitdirectory directory multiple hidden>
+    </div>
+
+    <p id="status" role="status">Checking for a saved copy…</p>
+    <div class="chips" aria-live="polite">
+      <span id="chip-pad" class="chip">No controller</span>
+      <span id="chip-net" class="chip">Offline</span>
+    </div>
+
+    <div id="stage">
+      <canvas id="canvas" width="960" height="640" tabindex="0"
+              oncontextmenu="event.preventDefault()"></canvas>
+    </div>
+
+    <details open>
+      <summary>How to play</summary>
+      <table>
+        <tr><td>Online</td><td>Main menu → <b>Multiplayer</b>. Everyone with that screen
+          open in the same room is listed; pick a player to challenge them. Send a
+          friend the room link to play privately.</td></tr>
+        <tr><td>Controller</td><td>Stick or d-pad moves · X high punch · A low punch · Y high
+          kick · B low kick · RB block · LB/RT run · LT special · Start pause · Back moves list.
+          In menus the stick moves a pointer and A taps.</td></tr>
+        <tr><td>Keyboard</td><td>W A S D or arrows · U high punch · I low punch · O block ·
+          J high kick · K low kick · L run · H special · P pause · M moves list.</td></tr>
+        <tr><td>Mouse / touch</td><td>The game's own touch controls; the mouse is a finger.</td></tr>
+      </table>
+    </details>
+    <details>
+      <summary>Log</summary>
+      <pre id="log"></pre>
+    </details>
+  </main>
+
+  <script>
+    "use strict";
+    const $ = id => document.getElementById(id);
+    const status = $("status"), logEl = $("log");
+    const logLines = [];
+    let started = false;
+
+    function log(line) {
+      logLines.push(String(line));
+      if (logLines.length > 4000) logLines.splice(0, 1000);
+      logEl.textContent = logLines.slice(-300).join("\n");
+    }
+    function say(text, bad) {
+      status.textContent = text;
+      status.classList.toggle("bad", !!bad);
+    }
+
+    /* ---- name and room: remembered, and the room can come from the link ---- */
+    const params = new URLSearchParams(location.search);
+    function stored(key, fallback) {
+      try { return localStorage.getItem(key) || fallback; } catch (e) { return fallback; }
+    }
+    function store(key, value) {
+      try { localStorage.setItem(key, value); } catch (e) {}
+    }
+    const nameInput = $("name"), roomInput = $("room");
+    nameInput.value = stored("umk3.name", "PLAYER" + Math.floor(1000 + Math.random() * 9000));
+    roomInput.value = params.get("room") || stored("umk3.room", "");
+    function cleanName(s) { return s.toUpperCase().replace(/[^A-Z0-9 _.-]/g, "").trim().slice(0, 12); }
+    function cleanRoom(s) { return s.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 24); }
+    nameInput.addEventListener("change", () => {
+      nameInput.value = cleanName(nameInput.value) || "PLAYER";
+      store("umk3.name", nameInput.value);
+    });
+    roomInput.addEventListener("change", () => {
+      roomInput.value = cleanRoom(roomInput.value);
+      store("umk3.room", roomInput.value);
+    });
+    store("umk3.name", nameInput.value);
+    $("copy-link").addEventListener("click", async () => {
+      const room = cleanRoom(roomInput.value) ||
+        Math.random().toString(36).slice(2, 8);
+      roomInput.value = room;
+      store("umk3.room", room);
+      const url = location.origin + location.pathname + "?room=" + room;
+      try { await navigator.clipboard.writeText(url); say("Room link copied: " + url); }
+      catch (e) { say("Room link: " + url); }
+    });
+
+    /* ---- the program ---- */
+    const module = window.Module = {
+      canvas: $("canvas"),
+      arguments: ["/assets/res"],
+      get umk3PlayerName() { return cleanName(nameInput.value) || "PLAYER"; },
+      get umk3Room() { return cleanRoom(roomInput.value) || "public"; },
+      umk3NetLog: line => log("[online] " + line),
+      print(line) {
+        log(line);
+        if (line.startsWith("front end ready")) {
+          started = true;
+          say("Ready. Main menu → Multiplayer to play online.");
+          $("canvas").focus();
+        } else if (line.startsWith("tables:")) {
+          say(line);
+        }
+      },
+      printErr(line) { log(line); },
+      monitorRunDependencies(left) {
+        if (left > 0 && !started && !status.textContent.startsWith("Loading"))
+          say("Preparing…");
+      },
+      onAbort(reason) {
+        say("The game stopped: " + reason + "\nThe log below has the details.", true);
+        log("ABORT: " + reason);
+      },
+    };
+
+    /* ---- the chips: controller and online state ---- */
+    function padName() {
+      const pads = navigator.getGamepads ? Array.from(navigator.getGamepads()).filter(Boolean) : [];
+      return pads.length ? pads[0].id.replace(/\s*\(.*\)\s*$/, "").slice(0, 40) : "";
+    }
+    function updateChips() {
+      const pad = padName();
+      $("chip-pad").textContent = pad ? "Controller: " + pad : "No controller";
+      $("chip-pad").classList.toggle("on", !!pad);
+      const net = module.umk3Net;
+      let text = "Offline", on = false;
+      if (net) {
+        switch (net.state) {
+        case 1: text = "Lobby" + (net.peers.length ? " · " + net.peers.length + " online" : " · waiting for players"); on = true; break;
+        case 2: text = "Connecting…"; on = true; break;
+        case 3: text = "Playing " + (net.partner ? net.partner.name : "online") +
+                       (net.partner && net.partner.host ? " (you host)" : ""); on = true; break;
+        case 4: text = "Disconnected"; break;
+        }
+      }
+      $("chip-net").textContent = text;
+      $("chip-net").classList.toggle("on", on);
+    }
+    window.addEventListener("gamepadconnected", updateChips);
+    window.addEventListener("gamepaddisconnected", updateChips);
+    setInterval(updateChips, 1000);
+
+    $("fullscreen").addEventListener("click", () => {
+      const el = $("stage");
+      (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      $("canvas").focus();
+    });
+    $("canvas").addEventListener("webglcontextlost", e => {
+      e.preventDefault();
+      say("The graphics context was lost; reload the page to restart.", true);
+    });
+
+    /* ---- the user's copy: picked now, or the one saved last time ---- */
+    const OPTIONS = { includeExecutable: true };
+    const pickIpa = $("pick-ipa"), pickFolder = $("pick-folder"), clearBtn = $("clear");
+    function pickers(on) {
+      pickIpa.disabled = pickFolder.disabled = !on;
+    }
+    pickIpa.addEventListener("click", () => $("ipa").click());
+    pickFolder.addEventListener("click", () => $("app-folder").click());
+    clearBtn.addEventListener("click", async () => {
+      clearBtn.disabled = true;
+      try {
+        await window.UMK3IPAStore.clearSavedFiles();
+        say(started ? "Saved copy forgotten. This session keeps running."
+                    : "Saved copy forgotten. Choose your .ipa to play.");
+      } catch (e) {
+        say("Could not clear the saved copy: " + e.message, true);
+        clearBtn.disabled = false;
+      }
+    });
+
+    function progress(p) {
+      say(`Loading ${p.done}/${p.total}: ${p.path}`);
+    }
+
+    /* Every load ends here: the executable must be among the mounted files. */
+    function makeMounter(mount) {
+      let sawExecutable = false;
+      return {
+        mount(entry) {
+          if (entry.path === "UMK3") sawExecutable = true;
+          mount.umk3MountAsset(entry);
+        },
+        finish() {
+          if (!sawExecutable)
+            throw new Error("this copy has no UMK3 executable (Payload/UMK3.app/UMK3); " +
+                            "choose the .ipa itself or the whole UMK3.app folder");
+          mount.umk3FinishAssetMount();
+        },
+      };
+    }
+
+    async function persist() {
+      try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); }
+      catch (e) {}
+    }
+
+    async function loadIpa(file, fromStorage) {
+      pickers(false);
+      try {
+        say(fromStorage ? "Opening your saved copy…" : "Reading " + file.name + "…");
+        const mount = makeMounter(await module.umk3AssetMountReady);
+        let cache = false, index = 0;
+        await window.UMK3IPA.extractIpaResources(file, progress, async entry => {
+          if (cache) {
+            try { await window.UMK3IPAStore.saveIpaAsset(index++, entry); }
+            catch (e) { cache = false; log("cache: " + e.message); }
+          }
+          mount.mount(entry);
+        }, async info => {
+          if (fromStorage) return;
+          await persist();
+          try {
+            await window.UMK3IPAStore.saveIpa(file);
+            await window.UMK3IPAStore.beginIpaAssetCache(info.files);
+            cache = true;
+            clearBtn.disabled = false;
+          } catch (e) {
+            log("Not saved for next time: " + e.message);
+          }
+        }, OPTIONS);
+        if (cache) {
+          try { await window.UMK3IPAStore.finishIpaAssetCache(); }
+          catch (e) { log("cache: " + e.message); }
+        }
+        say("Starting…");
+        mount.finish();
+      } catch (e) {
+        pickers(true);
+        say("Could not read that copy: " + e.message, true);
+        log(e.stack || e.message);
+      }
+    }
+
+    async function loadFolder(files) {
+      pickers(false);
+      try {
+        say("Reading the folder…");
+        const mount = makeMounter(await module.umk3AssetMountReady);
+        await window.UMK3IPA.readAppDirectory(files, progress, e => mount.mount(e),
+          async entries => {
+            await persist();
+            try { await window.UMK3IPAStore.saveAssets(entries); clearBtn.disabled = false; }
+            catch (e) { log("Not saved for next time: " + e.message); }
+          }, OPTIONS);
+        say("Starting…");
+        mount.finish();
+      } catch (e) {
+        pickers(true);
+        say("Could not read that folder: " + e.message, true);
+        log(e.stack || e.message);
+      }
+    }
+
+    $("ipa").addEventListener("change", () => {
+      const f = $("ipa").files && $("ipa").files[0];
+      if (f) loadIpa(f, false);
+    });
+    $("app-folder").addEventListener("change", () => {
+      const fs = $("app-folder").files;
+      if (fs && fs.length) loadFolder(Array.from(fs));
+    });
+
+    window.startPage = async function() {
+      try {
+        const assets = await window.UMK3IPAStore.getSavedAssets();
+        const saved = await window.UMK3IPAStore.getSavedIpa();
+        /* A cache from a page that did not keep the executable cannot start
+         * the full game: fall through to the saved .ipa, or ask again. */
+        if (assets && assets.some(e => e.path === "UMK3")) {
+          clearBtn.disabled = false;
+          pickers(false);
+          try {
+            const mount = makeMounter(await module.umk3AssetMountReady);
+            say("Restoring your saved copy…");
+            await window.UMK3IPA.readSavedAssets(assets, progress, e => mount.mount(e));
+            say("Starting…");
+            mount.finish();
+            return;
+          } catch (e) {
+            log("Saved files failed, trying the saved .ipa: " + e.message);
+          }
+        }
+        if (saved && saved.blob) {
+          clearBtn.disabled = false;
+          await loadIpa(new File([saved.blob], saved.name || "UMK3.ipa"), true);
+          return;
+        }
+        say("Choose your UMK3 .ipa to play.");
+      } catch (e) {
+        say("Choose your UMK3 .ipa to play. (Saved copies are unavailable: " + e.message + ")");
+      }
+      pickers(true);
+    };
+  </script>
+  <script src="ipa.js"></script>
+  <script src="ipa_store.js" onload="window.startPage()"
+          onerror="document.getElementById('status').textContent = 'Could not load the local storage helper.'"></script>
+  {{{ SCRIPT }}}
+</body>
+</html>
