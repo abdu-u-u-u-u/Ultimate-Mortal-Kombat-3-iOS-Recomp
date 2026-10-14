@@ -1,0 +1,36 @@
+# /etc/systemd/system/umk3-signal.service
+# The online multiplayer lobby and WebRTC signalling (server/signal.js), behind
+# nginx at umk3.abdu.cloud/signal. It holds no files and carries no game
+# traffic; the whole home directory is read-only to it.
+
+[Unit]
+Description=UMK3 online multiplayer lobby and WebRTC signalling (umk3.abdu.cloud)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sushi
+Group=sushi
+WorkingDirectory=/home/sushi/umk3/server
+Environment=UMK3_SIGNAL_PORT=8830
+# Optional TURN relay: UMK3_TURN_URLS, UMK3_TURN_SECRET (chmod 600).
+EnvironmentFile=-/home/sushi/umk3/server/signal.env
+ExecStart=/usr/bin/node /home/sushi/umk3/server/signal.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=256M
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,88 @@
+# /etc/nginx/sites-available/umk3.abdu.cloud, linked from sites-enabled.
+# The browser build of the UMK3 port (static files in /var/www/umk3) and its
+# multiplayer lobby (umk3-signal.service on 127.0.0.1:8830, at /signal).
+# The site serves code only: every player loads game data from their own .ipa,
+# in their own browser; nothing is uploaded here.
+# Certificate: certbot certonly --webroot -w /var/www/certbot -d umk3.abdu.cloud
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name umk3.abdu.cloud;
+    server_tokens off;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type text/plain;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 308 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name umk3.abdu.cloud;
+
+    ssl_certificate /etc/letsencrypt/live/umk3.abdu.cloud/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/umk3.abdu.cloud/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    server_tokens off;
+    client_max_body_size 16k;           # nothing is uploaded to this site
+    client_body_timeout 15s;
+    client_header_timeout 15s;
+    keepalive_timeout 30s;
+
+    access_log /var/log/nginx/umk3.abdu.cloud.access.log;
+    error_log /var/log/nginx/umk3.abdu.cloud.error.log;
+
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    # Gamepads are a page permission too; the page asks for nothing else.
+    add_header Permissions-Policy "camera=(), geolocation=(), microphone=(), payment=(), usb=(), gamepad=(self)" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    root /var/www/umk3;
+    index index.html;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type text/plain;
+        try_files $uri =404;
+    }
+
+    # The lobby's WebSocket. Long-lived: a player can sit in the lobby.
+    location = /signal {
+        proxy_pass http://127.0.0.1:8830;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+    }
+    location = /signal/health {
+        proxy_pass http://127.0.0.1:8830;
+        proxy_set_header Host $host;
+    }
+
+    # `expires`, not add_header: an add_header here would drop the
+    # server-level security headers for these locations.
+    location ~* \.wasm$ {
+        types { application/wasm wasm; }
+        expires 1h;
+        try_files $uri =404;
+    }
+
+    location / {
+        expires -1;                     # Cache-Control: no-cache
+        try_files $uri $uri/ =404;
+    }
+}

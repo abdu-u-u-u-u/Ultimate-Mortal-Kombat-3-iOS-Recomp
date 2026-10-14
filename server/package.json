@@ -1,0 +1,15 @@
+{
+  "name": "umk3-signal",
+  "private": true,
+  "description": "Lobby and WebRTC signalling for UMK3 online multiplayer. Carries no game traffic.",
+  "license": "SEE LICENSE IN ../LICENSE",
+  "main": "signal.js",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node signal.js",
+    "test": "node --test test/signal.test.js"
+  },
+  "dependencies": {
+    "ws": "8.21.3"
+  }
+}
