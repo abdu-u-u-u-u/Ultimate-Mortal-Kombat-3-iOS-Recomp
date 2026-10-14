@@ -219,7 +219,11 @@
         log(line);
       },
       monitorRunDependencies(left) {
-        if (left > 0 && !started && !status.textContent.startsWith("Loading"))
+        /* Only while a copy is being loaded (the pickers are off then): the
+         * program waits on the copy from the start, and "Preparing…" over
+         * "Choose your .ipa" left a first visit with nothing to do. */
+        if (left > 0 && !started && $("pick-ipa").disabled &&
+            !status.textContent.startsWith("Loading"))
           say("Preparing…");
       },
       onAbort(reason) {
