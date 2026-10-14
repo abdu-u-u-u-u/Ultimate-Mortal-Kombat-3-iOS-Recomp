@@ -53,6 +53,16 @@
  *   H  special (the S button of the five-button layout)
  *   P  pause menu   M  moves list   (Esc no longer quits)
  * umk3.ini key_up= ... key_moves= rebinds them (virtual-key codes).
+ *
+ * A gamepad (XInput on Windows, SDL's game controllers elsewhere and in the
+ * browser) plays the same way, see pad_poll():
+ *   d-pad or left stick     the joystick
+ *   X high punch  A low punch  Y high kick  B low kick  RB block
+ *   LB or RT run  LT special   (five buttons: X punch, A kick, Y/B/LT special)
+ *   Start pause menu   Back moves list
+ * and in the menus, which are touch screens, the stick moves a cursor and A
+ * taps with it.
+ *
  * Each key held is a synthetic touch on the real control -- the dial or the
  * on-screen button -- so it goes through ReadControls and CheckLeftDial
  * exactly as a finger does, and the button lights as if pressed.
@@ -74,6 +84,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "platform/platform.h"
 #include "platform/gl.h"
@@ -172,6 +183,56 @@ extern long  JoystickStatePosX, JoystickStatePosY;
 extern long  Player1NumButtons;        /* 5 or 6, Settings[4] */
 extern int   Settings[10];
 
+extern long GamePaused;                 /* 0, or the pause menu / moves list */
+
+/* The pad, read once a tick by pad_poll(). In a fight that is in play it is
+ * player one's controls, through the same synthetic touches as the keyboard;
+ * anywhere else -- the menus, the pause menu, the moves list -- it is a
+ * cursor over the touch screen (pad_cursor). */
+static PADSTATE g_pad;
+static int      g_have_pad;
+
+static void pad_poll(void)
+{
+    g_have_pad = !g_keys_off && plat_pad_state(0, &g_pad);
+    if (!g_have_pad)
+        memset(&g_pad, 0, sizeof g_pad);
+}
+
+static int pad_fighting(void)
+{
+    return g_have_pad && CurrentTask == 6 && GamePaused == 0;
+}
+
+/* Button index 0..6 (HP LP BL HK LK RN, then the special S) held on the pad,
+ * in the layout the game is using. Six buttons: the face buttons are the
+ * punches (X, A) and kicks (Y, B), as an arcade panel's two rows are, and the
+ * shoulders block and run. Five (P - B K - R S): X punch, A kick, the other
+ * two face buttons special. */
+static int pad_button(int b, int six)
+{
+    static const int map6[7] = {
+        PADB_X, PADB_A, PADB_RB, PADB_Y, PADB_B, PADB_LB | PADB_RT, PADB_LT,
+    };
+    static const int map5[7] = {
+        PADB_X, 0, PADB_RB, PADB_A, 0, PADB_LB | PADB_RT,
+        PADB_Y | PADB_B | PADB_LT,
+    };
+    return pad_fighting() && ((six ? map6 : map5)[b] & g_pad.buttons) != 0;
+}
+
+/* The stick past half its travel is a direction, as the arcade's switch. */
+static void pad_dir(int *dx, int *dy)
+{
+    *dx = *dy = 0;
+    if (!pad_fighting())
+        return;
+    *dx = ((g_pad.buttons & PADB_RIGHT) || g_pad.lx > 0.5f)
+        - ((g_pad.buttons & PADB_LEFT) || g_pad.lx < -0.5f);
+    *dy = ((g_pad.buttons & PADB_DOWN) || g_pad.ly > 0.5f)
+        - ((g_pad.buttons & PADB_UP) || g_pad.ly < -0.5f);
+}
+
 /* Keyboard -> player 1, as touches. Slot 9 is the dial, slots 3..8 the
  * button indices 0..5 and slot 2 the special button (index 6); the mouse
  * takes the first free slot, from 0 up.
@@ -195,12 +256,13 @@ static void keyboard_touches(void)
     };
     const int (*keys)[2] = (Player1NumButtons == 6) ? keys6 : keys5;
     static int owned[10];
-    int dx, dy, b, i;
+    int dx, dy, b, i, pdx, pdy;
 
-    dx = (plat_key(PK_RIGHT) || plat_key(PK_P2_RIGHT))
-       - (plat_key(PK_LEFT) || plat_key(PK_P2_LEFT));
-    dy = (plat_key(PK_DOWN) || plat_key(PK_P2_DOWN))
-       - (plat_key(PK_UP) || plat_key(PK_P2_UP));
+    pad_dir(&pdx, &pdy);
+    dx = (plat_key(PK_RIGHT) || plat_key(PK_P2_RIGHT) || pdx > 0)
+       - (plat_key(PK_LEFT) || plat_key(PK_P2_LEFT) || pdx < 0);
+    dy = (plat_key(PK_DOWN) || plat_key(PK_P2_DOWN) || pdy > 0)
+       - (plat_key(PK_UP) || plat_key(PK_P2_UP) || pdy < 0);
     if (CurrentTask != 6)
         dx = dy = 0;
     if (dx || dy) {
@@ -217,7 +279,8 @@ static void keyboard_touches(void)
     for (b = 0; b < 7; b++) {
         int slot = (b < 6) ? 3 + b : 2, down = 0;
 
-        if (CurrentTask == 6 && (plat_key(keys[b][0]) || plat_key(keys[b][1])))
+        if (CurrentTask == 6 && (plat_key(keys[b][0]) || plat_key(keys[b][1])
+                                 || pad_button(b, Player1NumButtons == 6)))
             for (i = 0; i < 6; i++)
                 if (ButtonsPos[i * 5 + 4] == b) {
                     limeTouchScreenX[slot] = (float)ButtonsPos[i * 5];
@@ -548,8 +611,6 @@ extern int  Health[2];
  *      P   not paused: top right (pause)   menu open: RESUME   list: CANCEL
  *      M   not paused: top left (list)     list open: CANCEL
  */
-extern long GamePaused;
-
 static float g_ktap_x, g_ktap_y;
 static int   g_ktap_left;              /* ticks the synthetic finger stays down */
 
@@ -562,7 +623,8 @@ static void hud_keys(void)
         lime_touch_ended(g_ktap_x, g_ktap_y, g_ktap_x, g_ktap_y);
 
     for (k = 0; k < 2; k++) {
-        int down = plat_key(PK_PAUSE + k);
+        int down = plat_key(PK_PAUSE + k)
+                || (g_pad.buttons & (k == 0 ? PADB_START : PADB_BACK)) != 0;
         int hit = down && !was[k];
         float x = -1.0f, y = 10.0f;
 
@@ -583,6 +645,64 @@ static void hud_keys(void)
         g_ktap_left = 3;
         lime_touch_began(x, y);
     }
+}
+
+/* The pad's cursor over the touch screens: the left stick (or the d-pad)
+ * moves it, A is the finger. It shows once the pad moves it and hides again
+ * when the mouse moves, so whichever was used last is the one on screen.
+ * Speed grows with the square of the stick's travel past a 0.2 dead zone: a
+ * nudge places it to the point, a full push crosses the screen in a second
+ * and a half. In 480x320 units, a tick being 1/60 s. */
+static float g_cur_x = 240.0f, g_cur_y = 160.0f;
+static int   g_cur_shown, g_cur_down;
+
+static void pad_cursor(int mouse_x, int mouse_y)
+{
+    static int last_mx = -1, last_my = -1;
+    float px = g_cur_x, py = g_cur_y, mag, vx = 0.0f, vy = 0.0f;
+    int a = g_have_pad && !pad_fighting() && (g_pad.buttons & PADB_A);
+
+    if (mouse_x != last_mx || mouse_y != last_my) {
+        if (last_mx >= 0)
+            g_cur_shown = 0;            /* the mouse moved: it is the pointer */
+        last_mx = mouse_x;
+        last_my = mouse_y;
+    }
+    if (!g_have_pad || pad_fighting()) {
+        if (g_cur_down) {               /* a fight started under the finger */
+            lime_touch_ended(g_cur_x, g_cur_y, g_cur_x, g_cur_y);
+            g_cur_down = 0;
+        }
+        return;
+    }
+
+    mag = sqrtf(g_pad.lx * g_pad.lx + g_pad.ly * g_pad.ly);
+    if (mag > 0.2f) {
+        float t = ((mag > 1.0f ? 1.0f : mag) - 0.2f) / 0.8f;
+        float speed = (40.0f + 280.0f * t * t) / 60.0f;
+        vx = g_pad.lx / mag * speed;
+        vy = g_pad.ly / mag * speed;
+    }
+    if (g_pad.buttons & PADB_LEFT)  vx = -2.5f;
+    if (g_pad.buttons & PADB_RIGHT) vx =  2.5f;
+    if (g_pad.buttons & PADB_UP)    vy = -2.5f;
+    if (g_pad.buttons & PADB_DOWN)  vy =  2.5f;
+    if (vx != 0.0f || vy != 0.0f || a)
+        g_cur_shown = 1;
+    g_cur_x += vx;
+    g_cur_y += vy;
+    if (g_cur_x < 0.0f) g_cur_x = 0.0f;
+    if (g_cur_x > VIRT_W - 1) g_cur_x = VIRT_W - 1;
+    if (g_cur_y < 0.0f) g_cur_y = 0.0f;
+    if (g_cur_y > VIRT_H - 1) g_cur_y = VIRT_H - 1;
+
+    if (a && !g_cur_down)
+        lime_touch_began(g_cur_x, g_cur_y);
+    else if (a && (g_cur_x != px || g_cur_y != py))
+        lime_touch_moved(g_cur_x, g_cur_y, px, py);   /* drags scroll lists */
+    else if (!a && g_cur_down)
+        lime_touch_ended(g_cur_x, g_cur_y, g_cur_x, g_cur_y);
+    g_cur_down = a;
 }
 
 /* A round is in play: past the intro, nobody down, not between rounds, no
@@ -1329,6 +1449,8 @@ int main(int argc, char **argv)
 
             clear_frame(ww, wh, vx, vy, vw, vh);
             lime_menu_advance_clock(1.0 / 60.0);
+            pad_poll();
+            pad_cursor(mx, my);
             keyboard_touches();
             hud_keys();
             if (g_cfg_debug_keys && dbg_keys_on()) {
@@ -1350,6 +1472,8 @@ int main(int argc, char **argv)
                 StaticMeshAmbient[2] = 0.7f * 255.0f;
             }
             GameCodeMain();
+            if (g_cur_shown && !pad_fighting())   /* into the game's frame */
+                ui_cursor_draw(g_cur_x, g_cur_y, g_cur_down);
             /* skip_intro=1 (the launcher's box, or UMK3_SKIP_INTRO): once
              * Task_LoadSplashScreen's first frame has loaded both logos,
              * jump its counter to 491, the frame that deletes them and

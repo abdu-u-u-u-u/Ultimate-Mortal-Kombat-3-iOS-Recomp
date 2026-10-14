@@ -44,4 +44,7 @@ int  dbg_info_on(void);
 void dbg_info_toggle(void);
 void dbg_info_draw(const char *line);
 
+/* The gamepad's cursor over the touch menus (game_main.c), tip at (x, y). */
+void ui_cursor_draw(float x, float y, int pressed);
+
 #endif

@@ -135,6 +135,22 @@ void plat_bind_key(int code, int key);
  * BL, HK, LK, RUN. */
 int plat_pad(int which);
 
+/* The same pad as buttons and a stick, for the game's own mapping
+ * (runtime/game_main.c): in a fight the buttons press the on-screen
+ * controls, and in the menus -- which are touch screens -- the stick moves a
+ * cursor that stands in for the finger. Returns 0, with *out cleared, when
+ * no pad is there. The directions are the d-pad alone; the left stick is
+ * lx/ly, -1..1, y growing downwards on every backend. Triggers count as
+ * buttons past a quarter of their travel. */
+enum {
+    PADB_UP = 1 << 0, PADB_DOWN = 1 << 1, PADB_LEFT = 1 << 2, PADB_RIGHT = 1 << 3,
+    PADB_A = 1 << 4, PADB_B = 1 << 5, PADB_X = 1 << 6, PADB_Y = 1 << 7,
+    PADB_LB = 1 << 8, PADB_RB = 1 << 9, PADB_LT = 1 << 10, PADB_RT = 1 << 11,
+    PADB_BACK = 1 << 12, PADB_START = 1 << 13
+};
+typedef struct { int buttons; float lx, ly; } PADSTATE;
+int plat_pad_state(int which, PADSTATE *out);
+
 
 /* ------------------------------------------------------------------ audio
  *

@@ -363,6 +363,34 @@ int plat_pad(int which)
     return bits;
 }
 
+int plat_pad_state(int which, PADSTATE *out)
+{
+    static const struct { unsigned short x; int b; } map[] = {
+        { PAD_DUP, PADB_UP }, { PAD_DDOWN, PADB_DOWN },
+        { PAD_DLEFT, PADB_LEFT }, { PAD_DRIGHT, PADB_RIGHT },
+        { PAD_A, PADB_A }, { PAD_B, PADB_B }, { PAD_X, PADB_X },
+        { PAD_Y, PADB_Y }, { PAD_LB, PADB_LB }, { PAD_RB, PADB_RB },
+        { 0x0020, PADB_BACK }, { 0x0010, PADB_START },
+    };
+    PAD_STATE s;
+    size_t i;
+
+    memset(out, 0, sizeof *out);
+    if (plat_pad(which) < 0)            /* loads XInput; -1: no pad there */
+        return 0;
+    memset(&s, 0, sizeof s);
+    if (g_padget((unsigned long)which, &s) != 0)
+        return 0;
+    for (i = 0; i < sizeof map / sizeof map[0]; i++)
+        if (s.buttons & map[i].x)
+            out->buttons |= map[i].b;
+    if (s.lt > 64) out->buttons |= PADB_LT;
+    if (s.rt > 64) out->buttons |= PADB_RT;
+    out->lx =  s.lx / 32767.0f;
+    out->ly = -s.ly / 32767.0f;         /* XInput's y grows upwards */
+    return 1;
+}
+
 
 /* ------------------------------------------------------------------ alerts
  *

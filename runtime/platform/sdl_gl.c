@@ -285,6 +285,39 @@ int plat_pad(int which)
     return bits;
 }
 
+int plat_pad_state(int which, PADSTATE *out)
+{
+    static const struct { SDL_GameControllerButton x; int b; } map[] = {
+        { SDL_CONTROLLER_BUTTON_DPAD_UP, PADB_UP },
+        { SDL_CONTROLLER_BUTTON_DPAD_DOWN, PADB_DOWN },
+        { SDL_CONTROLLER_BUTTON_DPAD_LEFT, PADB_LEFT },
+        { SDL_CONTROLLER_BUTTON_DPAD_RIGHT, PADB_RIGHT },
+        { SDL_CONTROLLER_BUTTON_A, PADB_A }, { SDL_CONTROLLER_BUTTON_B, PADB_B },
+        { SDL_CONTROLLER_BUTTON_X, PADB_X }, { SDL_CONTROLLER_BUTTON_Y, PADB_Y },
+        { SDL_CONTROLLER_BUTTON_LEFTSHOULDER, PADB_LB },
+        { SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, PADB_RB },
+        { SDL_CONTROLLER_BUTTON_BACK, PADB_BACK },
+        { SDL_CONTROLLER_BUTTON_START, PADB_START },
+    };
+    SDL_GameController *pad;
+    size_t i;
+
+    memset(out, 0, sizeof *out);
+    if (plat_pad(which) < 0)            /* opens the first pad; -1: none */
+        return 0;
+    pad = g_controller;
+    for (i = 0; i < sizeof map / sizeof map[0]; i++)
+        if (SDL_GameControllerGetButton(pad, map[i].x))
+            out->buttons |= map[i].b;
+    if (SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_TRIGGERLEFT) > 8000)
+        out->buttons |= PADB_LT;
+    if (SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 8000)
+        out->buttons |= PADB_RT;
+    out->lx = SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_LEFTX) / 32767.0f;
+    out->ly = SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_LEFTY) / 32767.0f;
+    return 1;
+}
+
 double plat_time(void)
 {
     if (!g_freq) return 0.0;

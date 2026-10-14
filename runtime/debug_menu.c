@@ -783,3 +783,37 @@ void dbg_info_draw(const char *line)
     glEnd();
     end_2d();
 }
+
+/* The gamepad's finger over the touch menus (runtime/game_main.c): an arrow
+ * pointer, its tip at (x, y) in the 480x320 space, darker while A holds a
+ * touch down. Not a debug feature; it lives here for begin_2d/end_2d. */
+void ui_cursor_draw(float x, float y, int pressed)
+{
+    static const float shape[][2] = {   /* the tip first, 12 points tall */
+        { 0, 0 }, { 0, 12 }, { 3.2f, 9.2f }, { 5.6f, 13.6f },
+        { 7.4f, 12.8f }, { 5.2f, 8.6f }, { 9.0f, 8.6f },
+    };
+    const int n = (int)(sizeof shape / sizeof shape[0]);
+    int i, pass;
+
+    begin_2d();
+    for (pass = 0; pass < 2; pass++) {
+        /* a dark outline one point wider, then the fill */
+        float grow = pass ? 0.0f : 1.0f, c = pressed ? 0.7f : 1.0f;
+        if (pass)
+            glColor4f(c, c, pressed ? 0.3f : 1.0f, 1.0f);
+        else
+            glColor4f(0.0f, 0.0f, 0.0f, 0.85f);
+        glBegin(GL_TRIANGLES);
+        for (i = 1; i + 1 < n; i++) {    /* a fan from the tip */
+            int k, idx[3] = { 0, i, i + 1 };
+            for (k = 0; k < 3; k++) {
+                float px = shape[idx[k]][0], py = shape[idx[k]][1];
+                glVertex2f(x + px + (px > 0 ? grow : -grow),
+                           y + py + (py > 0 ? grow : -grow));
+            }
+        }
+        glEnd();
+    }
+    end_2d();
+}
