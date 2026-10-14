@@ -94,6 +94,10 @@
  * mouse: a test window takes the focus when it opens, and whoever is typing
  * in another window would otherwise be pressing keys in the test. */
 static int g_keys_off;
+/* --no-focus-pause: keep ticking without the keyboard focus, for testing two
+ * copies side by side (an online match in two windows or tabs). The game
+ * itself pauses on focus loss, as the iPhone's did on leaving the app. */
+static int g_no_focus_pause;
 static long g_tick;                     /* the tick count, for UMK3_KEYS */
 
 /* UMK3_KEYS="tick:keys:hold;..." -- player one's keys pressed by script, so a
@@ -1246,6 +1250,9 @@ int main(int argc, char **argv)
                             i + 3 < argc ? argv[i + 3] : NULL);
                 break;
             }
+        for (i = 1; i < argc; i++)
+            if (strcmp(argv[i], "--no-focus-pause") == 0)
+                g_no_focus_pause = 1;
         for (i = 1; i + 1 < argc; i++)
             if (strcmp(argv[i], "--screen") == 0)
                 g_screen_jump = parse_screen(argv[i + 1]);
@@ -1325,7 +1332,7 @@ int main(int argc, char **argv)
 
         /* The window's focus is the app's foreground; see runtime/lime_app.c. */
         {
-            int f = shot_at ? 1 : plat_focused();
+            int f = (shot_at || g_no_focus_pause) ? 1 : plat_focused();
             if (f != focused) {
                 focused = f;
                 if (f) {

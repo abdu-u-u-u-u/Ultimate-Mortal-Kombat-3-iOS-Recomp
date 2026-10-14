@@ -23,6 +23,43 @@
 #include <emscripten.h>
 #endif
 
+#ifdef __EMSCRIPTEN__
+/* The browser's pointer, read off the page rather than through SDL: where
+ * the press is as a fraction of the canvas's own box, which plat_mouse
+ * scales to the drawing buffer. SDL's mouse coordinates went through its
+ * idea of the window size, which with a CSS-sized canvas and a device pixel
+ * ratio other than 1 put taps at three quarters of where they were. Pointer
+ * events also carry touch, so a phone's finger works the same way. A press
+ * released before the next frame is latched, as in plat_poll. */
+EM_JS(void, web_pointer_install, (void), {
+    var c = Module['canvas'];
+    var st = Module['umk3Pointer'] = { x: -1, y: -1, down: 0, latch: 0 };
+    function pos(e) {
+        var r = c.getBoundingClientRect();
+        st.x = (e.clientX - r.left) / (r.width || 1);
+        st.y = (e.clientY - r.top) / (r.height || 1);
+    }
+    c.addEventListener('pointerdown', function(e) {
+        if (e.button !== 0) return;
+        pos(e); st.down = 1; st.latch = 1;
+        try { c.setPointerCapture(e.pointerId); } catch (x) {}
+    }, true);
+    c.addEventListener('pointermove', pos, true);
+    window.addEventListener('pointerup', function(e) { pos(e); st.down = 0; }, true);
+    window.addEventListener('pointercancel', function() { st.down = 0; }, true);
+});
+
+EM_JS(int, web_pointer_read, (float *fx, float *fy), {
+    var st = Module['umk3Pointer'];
+    if (!st) return 0;
+    HEAPF32[fx >> 2] = st.x;
+    HEAPF32[fy >> 2] = st.y;
+    var d = st.down || st.latch;
+    st.latch = 0;
+    return d ? 1 : 0;
+});
+#endif
+
 static SDL_Window   *g_wnd;
 static SDL_GLContext g_ctx;
 static bool          g_quit;
@@ -32,6 +69,15 @@ static SDL_GameController *g_controller;
 
 bool plat_open(const char *title, int width, int height)
 {
+#ifdef __EMSCRIPTEN__
+    /* The browser gets its frame in plat_poll's emscripten_sleep, the one
+     * place this program yields. Left on, SDL would also yield inside
+     * SDL_Delay and every SDL_GL_SwapWindow, from call paths ASYNCIFY was
+     * told not to instrument (tools/build_web.sh: ASYNCIFY_IGNORE_INDIRECT
+     * -- SDL reaches its drivers through function pointers), and the first
+     * resume traps ("unreachable" in SDL_InitSubSystem). */
+    SDL_SetHint(SDL_HINT_EMSCRIPTEN_ASYNCIFY, "0");
+#endif
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
         SDL_Log("SDL_Init: %s", SDL_GetError());
         return false;
@@ -72,6 +118,9 @@ bool plat_open(const char *title, int width, int height)
         SDL_Quit();
         return false;
     }
+#ifdef __EMSCRIPTEN__
+    web_pointer_install();
+#endif
 
     SDL_GL_MakeCurrent(g_wnd, g_ctx);
     SDL_GL_SetSwapInterval(1);
@@ -110,6 +159,14 @@ void *plat_gl_proc(const char *name)
 
 void (*plat_ask_hook)(int begin);
 
+
+/* A press that came and went between two frames: the game samples the
+ * button once a frame (plat_mouse), so a touchpad tap shorter than a frame
+ * would never be seen down. Latched here, reported down for one frame. */
+#ifndef __EMSCRIPTEN__                  /* the browser latches in web_pointer_read */
+static int g_click_latch, g_click_x, g_click_y;
+#endif
+
 bool plat_poll(void)
 {
     SDL_Event ev;
@@ -120,6 +177,15 @@ bool plat_poll(void)
             break;
         case SDL_KEYDOWN:
             break;
+#ifndef __EMSCRIPTEN__
+        case SDL_MOUSEBUTTONDOWN:
+            if (ev.button.button == SDL_BUTTON_LEFT) {
+                g_click_latch = 1;
+                g_click_x = ev.button.x;
+                g_click_y = ev.button.y;
+            }
+            break;
+#endif
         case SDL_WINDOWEVENT:
             if (ev.window.event == SDL_WINDOWEVENT_CLOSE) {
                 g_quit = true;
@@ -170,8 +236,25 @@ void plat_size(int *width, int *height)
 
 int plat_mouse(int *x, int *y)
 {
+#ifdef __EMSCRIPTEN__
+    float fx = -1.0f, fy = -1.0f;
+    int pdw = 0, pdh = 0, pdown = web_pointer_read(&fx, &fy);
+
+    SDL_GL_GetDrawableSize(g_wnd, &pdw, &pdh);
+    if (x) *x = fx < 0.0f ? -1 : (int)(fx * (float)pdw);
+    if (y) *y = fy < 0.0f ? -1 : (int)(fy * (float)pdh);
+    return pdown;
+#else
     int mx, my, ww, wh, dw, dh;
     Uint32 buttons = SDL_GetMouseState(&mx, &my);
+    int down = (buttons & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
+
+    if (!down && g_click_latch) {       /* pressed and released since last frame */
+        down = 1;
+        mx = g_click_x;
+        my = g_click_y;
+    }
+    g_click_latch = 0;
 
     SDL_GetWindowSize(g_wnd, &ww, &wh);
     SDL_GL_GetDrawableSize(g_wnd, &dw, &dh);
@@ -179,7 +262,8 @@ int plat_mouse(int *x, int *y)
     if (wh <= 0) wh = 1;
     if (x) *x = mx * dw / ww;
     if (y) *y = my * dh / wh;
-    return (buttons & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
+    return down;
+#endif
 }
 
 static SDL_Scancode g_scancode[PK_COUNT] = {

@@ -834,3 +834,36 @@ long setNextSpritesAndEvents(void)
     SpritelistReceived = 1;
     return 1;
 }
+
+/* ------------------------------------------------------------- testing ---- */
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+
+extern int   CharacterSelected, CharacterConfirmed, playerCharacter;
+extern long  pressedPlay, GameMode;
+extern float FE_Fade, FE_FadeAdd, Character_SelectWait;
+extern float limeTouchScreenX[10], limeTouchScreenY[10], limeLastTouchScreenX[10];
+
+/* The state a test of a match needs to see, as one line of JSON:
+ * Module._umk3_debug() from the page. Read-only; nothing calls it. */
+EMSCRIPTEN_KEEPALIVE const char *umk3_debug(void)
+{
+    static char buf[512];
+
+    snprintf(buf, sizeof buf,
+             "{\"task\":%d,\"fe\":%d,\"mode\":%ld,\"host\":%d,\"session\":%d,"
+             "\"dropped\":%d,\"sel\":%d,\"confirmed\":%d,\"mine\":%d,\"theirs\":%d,"
+             "\"pressedPlay\":%ld,\"theyPressed\":%ld,\"fade\":%.3f,\"fadeAdd\":%.4f,"
+             "\"selWait\":%.2f,\"touch\":[%.0f,%.0f,%.0f,%.0f],\"lastTouch0\":%.0f,"
+             "\"sprites\":%d,\"joys\":%d,\"peerReady\":%d,\"paused\":%ld,\"otherPaused\":%ld}",
+             CurrentTask, FE_CurrentTask, GameMode, g_host, g_session, g_dropped,
+             CharacterSelected, CharacterConfirmed, playerCharacter,
+             opponentCharacter, pressedPlay, opponentPressedPlay, FE_Fade,
+             FE_FadeAdd, Character_SelectWait, limeTouchScreenX[0],
+             limeTouchScreenY[0], limeTouchScreenX[1], limeTouchScreenY[1],
+             limeLastTouchScreenX[0], g_spr_len, g_joy_len, g_peer_ready,
+             GamePaused, otherPlayerPaused);
+    return buf;
+}
+#endif

@@ -84,6 +84,12 @@ long *startTime = &start_time;
 static uint8_t g_block[0x500];
 void *G = g_block;
 
+/* read only by umk3_debug(), the browser build's test readout */
+int   CharacterSelected = -1, CharacterConfirmed = -1, playerCharacter = -1;
+long  pressedPlay;
+float FE_Fade, FE_FadeAdd, Character_SelectWait;
+float limeTouchScreenX[10], limeTouchScreenY[10], limeLastTouchScreenX[10];
+
 long  SpritelistReceived, currentMPSpriteList, currentMPJoystickData;
 long  mpOpponentJoystickInput[4], opponentFPS2;
 char  mpSpriteList[0x140], mpEventQueue[0x1b0];

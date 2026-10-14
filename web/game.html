@@ -40,11 +40,20 @@
     }
     button.primary { background: var(--accent); color: #1a1408; border-color: var(--accent); font-weight: 600; }
     button:disabled { opacity: .45; cursor: default; }
-    #stage { position: relative; }
+    /* The game fits the window both ways: as wide as the page allows, and
+     * no taller than what is left of the window below the bar above it. */
+    :root { --chrome: 190px; }
+    body.playing { --chrome: 96px; }
+    body.playing #setup, body.playing details { display: none; }
+    #stage { display: flex; justify-content: center; }
     canvas {
-      display: block; width: 100%; aspect-ratio: 3 / 2; background: #000;
-      border-radius: 6px; outline: none;
+      display: block; aspect-ratio: 3 / 2; height: auto; background: #000;
+      width: min(100%, calc((100vh - var(--chrome)) * 1.5));
+      border-radius: 6px; outline: none; touch-action: none;
     }
+    #stage:fullscreen { background: #000; align-items: center; }
+    #stage:fullscreen canvas { width: min(100vw, 100vh * 1.5); border-radius: 0; }
+    .bar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 6px 0; }
     #status { min-height: 1.4em; white-space: pre-wrap; }
     #status.bad { color: var(--bad); }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -62,6 +71,7 @@
 <body>
   <main>
     <h1>Ultimate Mortal Kombat 3 <span>Online</span></h1>
+    <section id="setup">
     <p class="dim">Bring your own copy: choose the <code>.ipa</code> of UMK3 1.2.59
        for iPhone. It is read in this browser and never uploaded; it is kept
        here so the next visit starts straight away.</p>
@@ -79,15 +89,18 @@
       <button id="pick-ipa" class="primary" type="button" disabled>Choose UMK3 .ipa</button>
       <button id="pick-folder" type="button" disabled>…or the extracted UMK3.app folder</button>
       <button id="clear" type="button" disabled>Forget saved copy</button>
-      <button id="fullscreen" type="button">Fullscreen</button>
       <input id="ipa" type="file" accept=".ipa,application/zip" hidden>
       <input id="app-folder" type="file" webkitdirectory directory multiple hidden>
     </div>
+    </section>
 
-    <p id="status" role="status">Checking for a saved copy…</p>
-    <div class="chips" aria-live="polite">
-      <span id="chip-pad" class="chip">No controller</span>
-      <span id="chip-net" class="chip">Offline</span>
+    <div class="bar">
+      <span id="status" role="status">Checking for a saved copy…</span>
+      <span class="chips" aria-live="polite">
+        <span id="chip-pad" class="chip">No controller</span>
+        <span id="chip-net" class="chip">Offline</span>
+      </span>
+      <button id="fullscreen" type="button">Fullscreen</button>
     </div>
 
     <div id="stage">
@@ -166,9 +179,13 @@
     });
 
     /* ---- the program ---- */
+    /* Local testing only: ?nopause keeps a copy running in a background tab,
+     * for an online match between two tabs of one browser. */
+    const devArgs = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)
+                    && params.has("nopause") ? ["--no-focus-pause"] : [];
     const module = window.Module = {
       canvas: $("canvas"),
-      arguments: ["/assets/res"],
+      arguments: ["/assets/res"].concat(devArgs),
       get umk3PlayerName() { return cleanName(nameInput.value) || "PLAYER"; },
       get umk3Room() { return cleanRoom(roomInput.value) || "public"; },
       umk3NetLog: line => log("[online] " + line),
@@ -177,7 +194,7 @@
         if (line.startsWith("front end ready")) {
           started = true;
           say("Ready. Main menu → Multiplayer to play online.");
-          $("canvas").focus();
+          $("canvas").focus({ preventScroll: true });
         } else if (line.startsWith("tables: filled")) {
           say("Your copy checks out. Starting…");
         } else if (line.startsWith("tables:")) {
@@ -185,13 +202,22 @@
            * still encrypted, or not the game. The program has stopped, and
            * a saved copy would fail the same way on every visit. */
           failed = true;
+          document.body.classList.remove("playing");
           say("That copy can't be used: " + line.slice(8) +
               ". Choose the .ipa of UMK3 1.2.59 for iPhone.", true);
           window.UMK3IPAStore.clearSavedFiles().catch(() => {});
           pickers(true);
         }
       },
-      printErr(line) { log(line); },
+      printErr(line) {
+        /* LEGACY_GL_EMULATION repeats this for a texture-environment mode it
+         * ignores, every draw; once is enough to know. */
+        if (line.includes("Unhandled `pname` in call to `glTexEnvf`")) {
+          if (module.texEnvSaid) return;
+          module.texEnvSaid = true;
+        }
+        log(line);
+      },
       monitorRunDependencies(left) {
         if (left > 0 && !started && !status.textContent.startsWith("Loading"))
           say("Preparing…");
@@ -280,6 +306,11 @@
       return {
         mount(entry) {
           if (entry.path === "UMK3") sawExecutable = true;
+          /* The game reads Info.plist inside res/ (runtime/lime_menu.c,
+           * plist_load) -- where the native launcher puts it too. Beside
+           * res/, the language table was never found. */
+          if (entry.path === "Info.plist")
+            entry = { path: "res/Info.plist", bytes: entry.bytes };
           mount.umk3MountAsset(entry);
         },
         finish() {
@@ -289,6 +320,13 @@
           mount.umk3FinishAssetMount();
         },
       };
+    }
+
+    /* The copy is handed over: the setup gives the game the window. */
+    function playing() {
+      document.body.classList.add("playing");
+      window.scrollTo(0, 0);
+      $("canvas").focus({ preventScroll: true });
     }
 
     async function persist() {
@@ -326,6 +364,7 @@
         }
         say("Starting…");
         mount.finish();
+        playing();
       } catch (e) {
         pickers(true);
         say("Could not read that copy: " + e.message, true);
@@ -346,6 +385,7 @@
           }, OPTIONS);
         say("Starting…");
         mount.finish();
+        playing();
       } catch (e) {
         pickers(true);
         say("Could not read that folder: " + e.message, true);
@@ -392,6 +432,19 @@
     });
 
     window.startPage = async function() {
+      /* Local testing only: ?ipa=<path on this same server> loads the
+       * developer's own copy without the file picker. Refused anywhere but
+       * localhost, so the public site can never be pointed at a copy. */
+      const devIpa = params.get("ipa");
+      if (devIpa && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+        const url = new URL(devIpa, location.href);
+        if (url.origin === location.origin) {
+          say("Loading the local test copy…");
+          const blob = await (await fetch(url)).blob();
+          await loadIpa(new File([blob], url.pathname.split("/").pop()), true);
+          return;
+        }
+      }
       try {
         const assets = await window.UMK3IPAStore.getSavedAssets();
         const saved = await window.UMK3IPAStore.getSavedIpa();
@@ -406,6 +459,7 @@
             await window.UMK3IPA.readSavedAssets(assets, progress, e => mount.mount(e));
             say("Starting…");
             mount.finish();
+            playing();
             return;
           } catch (e) {
             log("Saved files failed, trying the saved .ipa: " + e.message);
