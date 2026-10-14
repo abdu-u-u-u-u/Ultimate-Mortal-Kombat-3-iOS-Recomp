@@ -26,6 +26,15 @@ runs, the code map, the bug method, the debug menu and every test variable.
 
 - Every function is decompiled (2,572 of 2,572); the game plays the menus,
   Arcade to the end (treasure screen) and whole fights on Windows.
+- **2026-10-14, online play in the browser** ([ONLINE.md](ONLINE.md)): the
+  game's two-player mode over WebRTC (runtime/mp_session.c, web/mp_webrtc.js,
+  server/), the full game built for the browser with its tables filled from
+  each player's own .ipa (tools/build_web.sh, runtime/umk3_tables_rt.c), and
+  the gamepad wired into the real game (it was only the old test scene's).
+  Four crash sites on the network paths and a batch of declarations wasm-ld
+  refuses were fixed in decomp/, each commented. Verified up to the game; the
+  first build from the real binary and the first real match are next, and
+  are where to look first if anything is wrong.
 - The open list is the README's *Known problems*. Done in 0.0.6: the
   Electron launcher, Shao Kahn's death and the ending texts, the treasure
   softlock, the pier floor. Next in Mary's queue: texture errors on other
