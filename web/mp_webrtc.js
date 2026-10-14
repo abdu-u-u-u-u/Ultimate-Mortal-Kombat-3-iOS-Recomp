@@ -25,6 +25,7 @@
  *   Module.umk3SignalUrl   wss://host/signal; default: this page's origin
  *   Module.umk3PlayerName  the name other players see; default from the page
  *   Module.umk3Room        lobby partition; default "public" (?room= in the URL)
+ *   ?relay=1               (URL) relay everything through TURN, for testing it
  */
 
 addToLibrary({
@@ -115,7 +116,20 @@ addToLibrary({
         UMK3NET.peers = m.list || [];
         break;
       case 'invited':
-        /* One invitation at a time; a second while one is open is declined. */
+        /* Two players who pick each other at the same moment: both
+         * invitations cross on the wire. Declining both would leave them
+         * staring at each other, so the lower id accepts and the higher one
+         * waits for that answer -- the same decision on both sides with no
+         * round trip. */
+        if (UMK3NET.inviteSent === m.from && !UMK3NET.partner) {
+          if (UMK3NET.myId < m.from) {
+            UMK3NET.inviteSent = null;
+            UMK3NET.send({ t: 'answer', to: m.from, accept: true });
+          }
+          break;
+        }
+        /* Otherwise one invitation at a time; another while one is open is
+         * declined. */
         if (UMK3NET.invitation || UMK3NET.partner || UMK3NET.inviteSent)
           UMK3NET.send({ t: 'answer', to: m.from, accept: false });
         else
@@ -149,7 +163,12 @@ addToLibrary({
     /* The guest offers, the host answers. The lobby makes the player who
      * accepted the invitation the host (server/signal.js). */
     startRtc: function() {
-      var pc = new RTCPeerConnection({ iceServers: UMK3NET.ice });
+      /* ?relay=1 sends everything through the TURN relay, never direct: the
+       * way to check the relay works without finding a hostile network. */
+      var relayOnly = new URLSearchParams(location.search).get('relay') === '1';
+      var pc = new RTCPeerConnection({ iceServers: UMK3NET.ice,
+                                       iceTransportPolicy: relayOnly ? 'relay' : 'all' });
+      if (relayOnly) UMK3NET.log('relay only');
       UMK3NET.pc = pc;
       UMK3NET.pendingIce = [];
       pc.onicecandidate = function(ev) {
@@ -201,11 +220,34 @@ addToLibrary({
         UMK3NET.state = UMK3NET.CONNECTED;
         UMK3NET.log('connected to ' + UMK3NET.partner.name +
                     (UMK3NET.partner.host ? ' (you host)' : ' (they host)'));
+        UMK3NET.logRoute();
       };
       dc.onmessage = function(ev) {
         if (ev.data instanceof ArrayBuffer) UMK3NET.inbox.push(new Uint8Array(ev.data));
       };
       dc.onclose = function() { UMK3NET.closeRtc('channel closed'); };
+    },
+
+    /* Which path the link took: host/srflx candidates are direct, relay is
+     * through the TURN server. For the log only. */
+    logRoute: function() {
+      var pc = UMK3NET.pc;
+      if (!pc || !pc.getStats) return;
+      pc.getStats().then(function(stats) {
+        var pair = null, local = {};
+        stats.forEach(function(r) {
+          if (r.type === 'transport' && r.selectedCandidatePairId)
+            pair = stats.get(r.selectedCandidatePairId);
+          if (r.type === 'local-candidate') local[r.id] = r;
+        });
+        if (!pair) stats.forEach(function(r) {
+          if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') pair = r;
+        });
+        var c = pair && local[pair.localCandidateId];
+        if (c) UMK3NET.log('route: ' + c.candidateType + ' over ' + (c.protocol || '?') +
+                           (pair.currentRoundTripTime ? ', rtt ' +
+                            Math.round(pair.currentRoundTripTime * 1000) + ' ms' : ''));
+      }).catch(function() {});
     },
 
     closeRtc: function(why) {

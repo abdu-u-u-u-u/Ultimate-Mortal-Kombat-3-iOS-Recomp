@@ -80,12 +80,13 @@ const TURN_SECRET = process.env.UMK3_TURN_SECRET || '';
  * pendingFrom: Set<id>, tokens, last, alive }. */
 const clients = new Map();
 
-function iceServers() {
+function iceServers(id) {
     const list = [{ urls: STUN }];
     if (TURN_URLS.length && TURN_SECRET) {
         /* coturn's REST credentials: username = expiry:label, password =
-         * base64(HMAC-SHA1(secret, username)). Nothing is stored. */
-        const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_S}:umk3`;
+         * base64(HMAC-SHA1(secret, username)). Nothing is stored. The label is
+         * the connection's id, so coturn's per-user quota is per player. */
+        const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_S}:${id}`;
         const credential = crypto.createHmac('sha1', TURN_SECRET)
             .update(username).digest('base64');
         list.push({ urls: TURN_URLS, username, credential });
@@ -185,7 +186,7 @@ function onMessage(c, raw) {
          * the sprite list is this port's memory layout, not a fixed format. */
         c.build = String(m.build || '').slice(0, 64);
         clearTimeout(c.helloTimer);
-        send(c, { t: 'welcome', id: c.id, ice: iceServers() });
+        send(c, { t: 'welcome', id: c.id, ice: iceServers(c.id) });
         return;
     }
 

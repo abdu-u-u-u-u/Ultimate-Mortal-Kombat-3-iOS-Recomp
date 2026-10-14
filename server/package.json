@@ -7,7 +7,7 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "start": "node signal.js",
-    "test": "node --test test/signal.test.js"
+    "test": "node --test test/signal.test.js test/lobby_client.test.js"
   },
   "dependencies": {
     "ws": "8.21.3"
